@@ -1,11 +1,12 @@
 from setuptools import setup
+import gwb.global_properties as global_properties
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
     name='gwbackupy',
-    version='0.2.0',
+    version=global_properties.version,
     packages=['gwb'],
     url='https://github.com/smartondev/gwbackupy',
     license='BSD 3-Clause "New" or "Revised" License',

@@ -1,6 +1,10 @@
 
 # CHANGELOG
 
+## 0.2.1 - 2022-12-20
+
+Software version fix and automatism
+
 ## 0.2.0 - 2012-12-20
 
 `setup.py` fixes and additions

@@ -18,7 +18,7 @@ logging.basicConfig(
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Google Workspace Backup Tool')
+    parser = argparse.ArgumentParser(description='Google Workspace Backup Tool ' + global_properties.version)
     parser.add_argument('--batch-size', type=int, help='Email of the account', default=8)
     parser.add_argument('--service-account-email', type=str, help='Email of the service account',
                         required=True)
@@ -73,6 +73,7 @@ def startup():
         else:
             print('Unknown command')
             exit(1)
+
 
 if __name__ == '__main__':
     startup()
