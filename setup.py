@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name='gwbackupy',
-    version='0.1.0',
+    version='0.1.1',
     packages=['gwb'],
     url='https://github.com/smartondev/gwbackupy',
     license='BSD 3-Clause "New" or "Revised" License',
