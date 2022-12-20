@@ -52,7 +52,7 @@ Additional functionality under development.
 Backup
 
 ```bash
-python3 gwb.py \
+gwbackupy \
   --service-account-email <service-account-email> \
   --service-account-key-filepath <service-acount-p12-key-file> \
   --batch-size 5 \
@@ -63,7 +63,7 @@ python3 gwb.py \
 Restore
 
 ```bash
-python3 gwb.py \
+gwbackupy \
   --service-account-email <service-account-email> \
   --service-account-key-filepath <service-acount-p12-key-file> \
   --batch-size 5 \
