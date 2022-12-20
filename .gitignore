@@ -1,0 +1,36 @@
+# phpstorm project files
+.idea
+*.iml
+
+# netbeans project files
+nbproject
+
+# zend studio for eclipse project files
+.buildpath
+.project
+.settings
+
+# service accounts key files
+*.p12
+
+# sublime text project / workspace files
+*.sublime-project
+*.sublime-workspace
+
+# visual studio code project files
+.vscode
+
+# windows thumbnail cache
+Thumbs.db
+
+# Mac DS_Store Files
+.DS_Store
+
+# temp directory
+/.tmp
+
+# build directories eg. pip
+/build
+/gwbackupy.egg-info
+
+
