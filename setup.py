@@ -13,7 +13,7 @@ setup(
     scripts=['scripts/gwbackupy'],
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: BSD 3-Clause \"New\" or \"Revised\" License",
+        "License :: OSI Approved :: BSD License",
         "Operating System :: OS Independent",
     ],
 )
