@@ -1,5 +1,8 @@
 # gwbackupy
 
+![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)
+![0.2.0](https://img.shields.io/pypi/v/gwbackupy)
+
 ## What is it?
 
 Google Workspace backup and restore solution. Currently supported only the gmail messages.
