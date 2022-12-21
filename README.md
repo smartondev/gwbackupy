@@ -2,6 +2,7 @@
 
 ![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)
 ![0.2.0](https://img.shields.io/pypi/v/gwbackupy)
+![](https://img.shields.io/github/license/smartondev/gwbackupy)
 
 ## What is it?
 
