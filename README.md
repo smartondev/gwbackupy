@@ -1,21 +1,27 @@
-# gwbackupy
+# gwbackupy: Google Workspace™ backup and restore solution.
 
 ![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)
 ![0.2.0](https://img.shields.io/pypi/v/gwbackupy)
 
 ## What is it?
 
-Google Workspace backup and restore solution. Currently supported only the gmail messages.
+[Google Workspace™](https://workspace.google.com/) backup and restore solution. Gwbackupy is open source and written in python.
+
+Currently supported only the gmail messages.
 
 ## Why?
 
-[gmvault](https://github.com/gaubert/gmvault) authentication method is not usable in Google Workspace wide, 
-and is still abandoned (?).
+Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
+- authentication method is not usable in Google Workspace wide
+- is still abandoned (?)
+- only supports gmail messages
 
 ## Currently implemented functionality
 
 - Google Workspace
-  - authentication with p12 service account file (it can be applied to the entire workspace.)
+  - authentication with p12 service account file.
+    
+    *It can be applied to the entire workspace.*
 - Gmail
   - full backup
     Download all messages
