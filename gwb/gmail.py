@@ -181,7 +181,17 @@ class Gmail:
                 raw = decode_base64url(data.get('raw'))
                 self.__store_message_file(message_id, raw, dates, path_type)
                 data.pop('raw')
-            json.dump(data, open(get_path(self.email, message_id, 'json', dates, type=path_type), 'w'))
+            metafile = get_path(self.email, message_id, 'json', dates, type=path_type)
+            writemeta = True
+            if os.path.exists(metafile):
+                d = json.load(open(metafile))
+                if d == data:
+                    writemeta = False
+            if writemeta:
+                logging.debug('Meta data is changed, writing to file')
+                json.dump(data, open(metafile, 'w'))
+            else:
+                logging.debug('Meta data is not changed, skip file writing')
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1

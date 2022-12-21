@@ -1,9 +1,9 @@
 
 # CHANGELOG
 
-## 3.0.0 under development
+## 0.3.0 under development
 
-
+- Enh #1: write message.json only if it changes - gmail backup. (kamarton)
 
 ## 0.2.1 - 2022-12-20
 
