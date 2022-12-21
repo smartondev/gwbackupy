@@ -8,17 +8,21 @@ from gwb.gmail import Gmail
 
 lock = threading.Lock()
 
-Log_Format = "%(levelname)s %(asctime)s - %(message)s"
-logging.basicConfig(
-    # filename="logfile.log",
-    stream=sys.stdout,
-    filemode="w",
-    format=Log_Format,
-    level=logging.DEBUG)
-
 
 def parse_arguments():
+    log_levels = {
+        "finest": global_properties.log_finest,
+        "debug": logging.DEBUG,
+        "info": logging.INFO,
+        "warning": logging.WARN,
+        "error": logging.ERROR,
+        "critical": logging.CRITICAL,
+    }
+
     parser = argparse.ArgumentParser(description='Google Workspace Backup Tool ' + global_properties.version)
+    parser.add_argument('--log-level', type=str.lower,
+                        help="Logging level: {keys}".format(keys=', '.join(log_levels.keys())),
+                        default='info', choices=log_levels)
     parser.add_argument('--batch-size', type=int, help='Email of the account', default=8)
     parser.add_argument('--service-account-email', type=str, help='Email of the service account',
                         required=True)
@@ -40,8 +44,13 @@ def parse_arguments():
                                       help='Add label to restored emails', default=None, dest='add_labels')
 
     args = parser.parse_args()
-    # print(args)
-    # exit(0)
+    Log_Format = "%(levelname)s %(asctime)s - %(message)s"
+    logging.basicConfig(
+        # filename="logfile.log",
+        stream=sys.stdout,
+        filemode="w",
+        format=Log_Format,
+        level=log_levels[args.log_level])
     return args
 
 

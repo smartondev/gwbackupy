@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
+import gwb.global_properties as global_properties
 
 from gwb.helpers import get_path, decode_base64url, encode_base64url
 
@@ -74,6 +75,7 @@ class Gmail:
             self.__services[email].append(service)
 
     def __get_all_messages_from_local(self):
+        logging.info("Scanning messages from local")
         path = get_path(self.email, type=['gmail', 'messages'])
         data = {}
         for file_path in glob.glob(path + '/**', recursive=True):
@@ -82,8 +84,8 @@ class Gmail:
                 continue
             name = file.split('.')[0]
             if name not in data.keys():
+                logging.log(global_properties.log_finest, f"{name} message found")
                 data[name] = {}
-            # if file_path ends with '.json'
             if file_path.endswith('.json'):
                 data[name]['metadata'] = file_path
             if file_path.endswith('.eml.gz') or file_path.endswith('.eml'):
@@ -92,23 +94,29 @@ class Gmail:
                 data[name]['message_hash'] = file_path
         # print(data)
         # exit(-1)
+        logging.info(f'Local messages scanned: {len(data)}')
         return data
 
     def __get_message_from_server(self, message_id, message_format='raw', try_count=5, sleep=10):
+        logging.debug(f'{message_id} download from server with format: {message_format}')
         for i in range(try_count):
             service = self.__get_service()
             try:
                 # message_id = message_id[:-1] + 'a'
-                return service.users().messages().get(userId='me', id=message_id, format=message_format).execute()
+                result = service.users().messages().get(userId='me', id=message_id, format=message_format).execute()
+                logging.debug(f"{message_id} successfully downloaded")
+                return result
             except HttpError as e:
                 if e.status_code == 404:
+                    logging.warning(f"{message_id} message not found")
                     # message not found
                     return None
                 if i == try_count - 1:
                     # last try
+                    logging.error(f"{message_id} message download failed")
                     raise e
                 logging.error(e)
-                logging.info("Wait " + str(sleep) + " seconds and retry..")
+                logging.info(f"{message_id} Wait {sleep} seconds and retry..")
                 time.sleep(sleep)
                 continue
             except Exception:
@@ -122,6 +130,7 @@ class Gmail:
                 del self.__emails_locally[message_id]
 
     def __store_message_file(self, message_id, raw_message, email_dates, path_type):
+        logging.debug("Store message {id}".format(id=message_id))
         md5 = hashlib.md5(raw_message).hexdigest()
         sha1 = hashlib.sha1(raw_message).hexdigest()
         hash_file = get_path(self.email, message_id, 'hash', email_dates, type=path_type)
@@ -131,7 +140,8 @@ class Gmail:
                 f.write(md5 + '\n' + sha1)
             with gzip.open(message_file, "wb", compresslevel=9) as binary_file:
                 binary_file.write(raw_message)
-        except Exception:
+        except Exception as e:
+            logging.error(e)
             if os.path.exists(hash_file):
                 os.remove(hash_file)
             if os.path.exists(message_file):
@@ -170,7 +180,7 @@ class Gmail:
             subject = data.get('snippet', '')
             if len(subject) > 64:
                 subject = subject[:64] + '...'
-            logging.debug('Subject: ' + subject)
+            logging.debug(f'{message_id} Subject: {subject}')
             dates = datetime.fromtimestamp(int(data['internalDate']) / 1000, tz=timezone.utc) \
                 .strftime('%Y-%m-%d').split('-', 1)
 
@@ -182,16 +192,16 @@ class Gmail:
                 self.__store_message_file(message_id, raw, dates, path_type)
                 data.pop('raw')
             metafile = get_path(self.email, message_id, 'json', dates, type=path_type)
-            writemeta = True
+            write_meta = True
             if os.path.exists(metafile):
                 d = json.load(open(metafile))
                 if d == data:
-                    writemeta = False
-            if writemeta:
-                logging.debug('Meta data is changed, writing to file')
+                    write_meta = False
+            if write_meta:
+                logging.debug(f'{message_id} Meta data is changed, writing to file')
                 json.dump(data, open(metafile, 'w'))
             else:
-                logging.debug('Meta data is not changed, skip file writing')
+                logging.debug(f'{message_id} Meta data is not changed, skip file writing')
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
@@ -206,15 +216,19 @@ class Gmail:
             messages = []
             count = 0
             next_page_token = None
+            page = 1
             while True:
+                logging.debug(f'Loading {page}. from server...')
                 # print('.', end='')
                 data = service.users().messages() \
                     .list(userId='me', pageToken=next_page_token, maxResults=1000, q='label:all').execute()
+                logging.debug(f'{page} successfully loaded')
                 # print(data)
                 # exit(-1)
                 next_page_token = data.get('nextPageToken', None)
                 count = count + len(data.get('messages', []))
                 messages.extend(data.get('messages', []))
+                page = page + 1
                 if data.get('nextPageToken') is None:
                     break
             logging.info('Message(s) count: ' + str(count))
