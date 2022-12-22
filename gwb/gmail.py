@@ -1,5 +1,4 @@
 import concurrent.futures
-import glob
 import gzip
 import json
 import logging
@@ -13,7 +12,16 @@ from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
 import gwb.global_properties as global_properties
 
-from gwb.helpers import get_path, decode_base64url, encode_base64url
+from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim
+
+
+class StorageDescriptor:
+    """Local files descriptor"""
+
+    def __init__(self):
+        self.metadata = None
+        self.message = None
+        self.message_hash = None
 
 
 class Gmail:
@@ -78,20 +86,21 @@ class Gmail:
         logging.info("Scanning messages from local")
         path = get_path(self.email, type=['gmail', 'messages'])
         data = {}
-        for file_path in glob.glob(path + '/**', recursive=True):
-            file = os.path.basename(file_path)
-            if '.' not in file:
-                continue
-            name = file.split('.')[0]
-            if name not in data.keys():
-                logging.log(global_properties.log_finest, f"{name} message found")
-                data[name] = {}
-            if file_path.endswith('.json'):
-                data[name]['metadata'] = file_path
-            if file_path.endswith('.eml.gz') or file_path.endswith('.eml'):
-                data[name]['message'] = file_path
-            if file_path.endswith('.hash'):
-                data[name]['message_hash'] = file_path
+        for path, _, filenames in os.walk(path):
+            for file in filenames:
+                file_path = os.path.join(path, file)
+                if '.' not in file:
+                    continue
+                name = file.split('.')[0]
+                if name not in data.keys():
+                    logging.log(global_properties.log_finest, f"{name} message found")
+                    data[name] = StorageDescriptor()
+                if file_path.endswith('.json'):
+                    data[name].metadata = file_path
+                if file_path.endswith('.eml.gz') or file_path.endswith('.eml'):
+                    data[name].message = file_path
+                if file_path.endswith('.hash'):
+                    data[name].message_hash = file_path
         # print(data)
         # exit(-1)
         logging.info(f'Local messages scanned: {len(data)}')
@@ -136,10 +145,10 @@ class Gmail:
         hash_file = get_path(self.email, message_id, 'hash', email_dates, type=path_type)
         message_file = get_path(self.email, message_id, 'eml.gz', email_dates, type=path_type)
         try:
-            with open(hash_file, 'w') as f:
-                f.write(md5 + '\n' + sha1)
             with gzip.open(message_file, "wb", compresslevel=9) as binary_file:
                 binary_file.write(raw_message)
+            with open(hash_file, 'w') as f:
+                f.write(md5 + '\n' + sha1)
         except Exception as e:
             logging.error(e)
             if os.path.exists(hash_file):
@@ -149,19 +158,19 @@ class Gmail:
             raise
 
     def __required_message_download_format(self, message):
-        message_format = 'raw'
+        raw_format = 'raw'
         with self.__lock:
             local_data = self.__emails_locally.get(message['id'], None)
         if local_data is None:
-            return message_format
-        if local_data.get('message', None) is None:
-            return message_format
-        if os.path.getsize(local_data['message']) == 0:
-            return message_format
-        if local_data.get('message_hash', None) is None:
-            return message_format
-        if os.path.getsize(local_data['message_hash']) == 0:
-            return message_format
+            return raw_format
+        if local_data.message is None:
+            return raw_format
+        if os.path.getsize(local_data.message) == 0:
+            return raw_format
+        if local_data.message_hash is None:
+            return raw_format
+        if os.path.getsize(local_data.message_hash) == 0:
+            return raw_format
         return 'minimal'
 
     def __backup_messages(self, message):
@@ -177,9 +186,7 @@ class Gmail:
                 return
             self.__remove_from_emails_locally(message_id)
 
-            subject = data.get('snippet', '')
-            if len(subject) > 64:
-                subject = subject[:64] + '...'
+            subject = str_trim(data.get('snippet', ''), 64)
             logging.debug(f'{message_id} Subject: {subject}')
             dates = datetime.fromtimestamp(int(data['internalDate']) / 1000, tz=timezone.utc) \
                 .strftime('%Y-%m-%d').split('-', 1)
@@ -228,7 +235,7 @@ class Gmail:
                 next_page_token = data.get('nextPageToken', None)
                 count = count + len(data.get('messages', []))
                 messages.extend(data.get('messages', []))
-                page = page + 1
+                page += 1
                 if data.get('nextPageToken') is None:
                     break
             logging.info('Message(s) count: ' + str(count))
@@ -274,15 +281,19 @@ class Gmail:
             return False
         # no error founds
         # print(self.__emails_locally)
-        _fileKeys = ['metadata', 'message', 'message_hash']
         for message_id in self.__emails_locally:
             logging.info('Deleting locally stored message ' + message_id)
             data = self.__emails_locally[message_id]
-            for _fileKey in _fileKeys:
-                if _fileKey in data.keys():
-                    logging.info('Deleting locally stored file (' + data[_fileKey] + ')')
-                    os.remove(data[_fileKey])
+            self.__remove_file(data.metadata)
+            self.__remove_file(data.message)
+            self.__remove_file(data.message_hash)
         return True
+
+    @staticmethod
+    def __remove_file(filepath):
+        if filepath is not None and os.path.exists(filepath):
+            logging.info('Deleting locally stored file (' + filepath + ')')
+            os.remove(filepath)
 
     @staticmethod
     def __is_user_label_id(label_id):
@@ -334,43 +345,55 @@ class Gmail:
             if service is not None:
                 self.__release_service(service, email)
 
-    def __restore_message(self, message_files, to_email, labels_from_server, labels_from_server_to_email, try_count=5,
+    def __restore_message(self, storage_descriptor, to_email, labels_from_server, labels_from_server_to_email,
+                          try_count=5,
                           sleep=10):
+        logging.debug('Restoring message ' + storage_descriptor.message)
+        meta = json.load(open(storage_descriptor.metadata))
+        restore_message_id = meta.get('id')
+        logging.debug(f"{restore_message_id} {meta}")
+        label_ids = self.__add_label_ids.copy()
+        for label_id in meta.get('labelIds', []):
+            if self.__is_user_label_id(label_id):
+                label = self.__get_label_from_index_label_id(label_id, labels_from_server,
+                                                             labels_from_server_to_email)
+                label_ids.append(label['id'])
+            elif label_id == 'CHAT':
+                logging.info(f'{meta.id} Message with CHAT label is not supported')
+                return None
+            else:
+                label_ids.append(label_id)
+        if storage_descriptor.message is None:
+            logging.error(f"{restore_message_id} message file not found")
+            self.__error_count += 1
+            return None
+        with gzip.open(storage_descriptor.message, "rb") as binary_file:
+            # TODO check hash!
+            message_content = binary_file.read()
+        # print(file_content)
+        message_data = {
+            'labelIds': label_ids,
+            'raw': encode_base64url(message_content),
+        }
+        # print(meta['labelIds'])
+        # print(message_data)
+        subject = str_trim(meta.get('snippet', ''), 64)
         for i in range(try_count):
-            service = None
+            service = self.__get_service(to_email)
             try:
-                logging.info('Restoring message ' + message_files['message'])
-                meta = json.load(open(message_files['metadata']))
-                label_ids = self.__add_label_ids.copy()
-                # TODO: ignore CHAT label ID
-                for label_id in meta['labelIds']:
-                    if self.__is_user_label_id(label_id):
-                        label = self.__get_label_from_index_label_id(label_id, labels_from_server,
-                                                                     labels_from_server_to_email)
-                        label_ids.append(label['id'])
-                    else:
-                        label_ids.append(label_id)
-                with gzip.open(message_files['message'], "rb") as binary_file:
-                    message_content = binary_file.read()
-                # print(file_content)
-                message_data = {
-                    'labelIds': label_ids,
-                    'raw': encode_base64url(message_content),
-                }
-                # print(meta['labelIds'])
-                # print(message_data)
-                service = self.__get_service(to_email)
                 try:
+                    logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
                     result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
                                                                body=message_data).execute()
-                    print(result)
+                    logging.debug(f"Message uploaded {result}")
+                    logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
                     return result
                 except HttpError as e:
                     if i == try_count - 1:
-                        # last try
+                        # last trys
                         raise e
-                    logging.error(e)
-                    logging.info("Wait " + str(sleep) + " seconds and retry..")
+                    logging.error(f"{restore_message_id} Exception: {e}")
+                    logging.info(f"{restore_message_id} Wait {sleep} seconds and retry..")
                     time.sleep(sleep)
                     continue
                 except Exception:
@@ -398,21 +421,20 @@ class Gmail:
             to_email = self.email
         self.__error_count = 0
 
-        print(to_email)
+        # TODO restore only used labels ??
+        logging.info("Restoring labels...")
         labels_user = self.__get_user_labels_from_local()
         labels_from_server = self.__get_user_labels_only(
             self.__labels_index_by_key(self.__get_labels_from_server(), 'id'))
-        print(self.__labels_index_by_key(labels_from_server, 'id'))
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             for label_id in labels_user:
                 executor.submit(self.__restore_label, labels_user[label_id]['name'], to_email)
-                # label = self.__restore_label(labels_user[label_id]['name'], to_email)
-                # print(label)
         if self.add_labels is not None and len(self.add_labels) > 0:
             for label_name in self.add_labels:
-                print(label_name)
                 self.__restore_label(label_name, to_email)
+        logging.info("Labels restored")
 
+        logging.info("Getting labels from server...")
         labels_from_server_to_email = self.__get_user_labels_only(
             self.__labels_index_by_key(self.__get_labels_from_server(to_email), 'id'))
         labels_from_server_to_email_by_name = self.__labels_index_by_key(labels_from_server_to_email, 'name')
@@ -420,15 +442,17 @@ class Gmail:
             self.__add_label_ids = []
             for label_name in self.add_labels:
                 self.__add_label_ids.append(labels_from_server_to_email_by_name[label_name]['id'])
+        logging.info("Labels downloaded")
 
-        messages = self.__get_all_messages_from_local()
+        logging.info("Upload messages...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
-            for message_id in messages:
-                executor.submit(self.__restore_message, messages[message_id], to_email, labels_from_server,
+            for message_id in self.__emails_locally:
+                executor.submit(self.__restore_message, self.__emails_locally[message_id], to_email, labels_from_server,
                                 labels_from_server_to_email)
-                # self.__restore_message(messages[message_id], to_email, labels_from_server, labels_from_server_to_email)
-                # exit(-1)
 
-        print('error_count: ' + str(self.__error_count))
+        if self.__error_count > 0:
+            logging.error('Messages uploaded with ' + str(self.__error_count) + ' errors')
+            return False
+        logging.info("Messages uploaded successfully")
 
-        return False
+        return True
