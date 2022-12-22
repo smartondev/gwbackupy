@@ -23,7 +23,7 @@ def parse_arguments():
     parser.add_argument('--log-level', type=str.lower,
                         help="Logging level: {keys}".format(keys=', '.join(log_levels.keys())),
                         default='info', choices=log_levels)
-    parser.add_argument('--batch-size', type=int, help='Email of the account', default=8)
+    parser.add_argument('--batch-size', type=int, help='Email of the account', default=5)
     parser.add_argument('--service-account-email', type=str, help='Email of the service account',
                         required=True)
     parser.add_argument('--service-account-key-filepath', type=str,

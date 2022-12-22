@@ -5,7 +5,10 @@
 
 - Enh #1: write message.json only if it changes - gmail backup. (kamarton)
 - Enh #2: --log-level parameter
-- Enh #3: more logs
+- Enh #3: more logs, remove print() usage
+- Fix: gmail restore CHAT labels (fix with skipping)
+- Enh #4: memory optimization
+- Enh: local files scanning speed optimization
 
 ## 0.2.1 - 2022-12-20
 

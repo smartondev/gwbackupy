@@ -22,6 +22,12 @@ def get_path(email, file=None, extension=None, subdir=None, type=None):
     return path
 
 
+def str_trim(text, length, postfix="..."):
+    if len(text) > length:
+        text = text[:length] + postfix
+    return text
+
+
 def decode_base64url(data):
     padding = 4 - (len(data) % 4)
     data = data + ("=" * padding)
