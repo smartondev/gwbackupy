@@ -60,6 +60,8 @@ Additional functionality under development.
 
 ## Usage
 
+- [Parameters](docs/cli-parameters.md)
+
 ### Gmail
 
 Backup
@@ -82,7 +84,7 @@ gwbackupy \
   --add-label "backup-restore-1231" \
   --add-label "more-restore-label" \
   --email <source backup mailbox email address> \
-  --to-email <destination mailbox email address>
+  --to-email <destination mailbox email address> # If you want to a different destination account
 ```
 
 ## Contributing
