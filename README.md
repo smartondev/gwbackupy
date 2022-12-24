@@ -6,13 +6,15 @@
 
 ## What is it?
 
-[Google Workspace™](https://workspace.google.com/) backup and restore solution. Gwbackupy is open source and written in python.
+[Google Workspace™](https://workspace.google.com/) backup and restore solution. Gwbackupy is open source and written in
+python.
 
 Currently supported only the gmail messages.
 
 ## Why?
 
 Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
+
 - authentication method is not usable in Google Workspace wide
 - is still abandoned (?)
 - only supports gmail messages
@@ -20,37 +22,41 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 ## Currently implemented functionality
 
 - Google Workspace
-  - authentication with p12/json service account file.
-    
-    *It can be applied to the entire workspace.*
+    - authentication with p12/json service account file.
+
+      *It can be applied to the entire workspace.*
 - Gmail
-  - full backup
-    Download all messages
-  - full backup continuously
-    Scanning the full mailbox, but download only the new messages.
-  - full restore to an empty mailbox to same or other mailbox
-  - restore deleted message
-  - *partially restore with pre-filtered files at the file system level*
+    - full backup
+      Download all messages
+    - full backup continuously
+      Scanning the full mailbox, but download only the new messages.
+    - full restore to an empty mailbox to same or other mailbox
+    - restore deleted message
+    - *partially restore with pre-filtered files at the file system level*
 
 Additional functionality under development.
 
 ## Functionality planned in the near future
 
 - Google Workspace
-  - list all workspace accounts email addresses
+    - list all workspace accounts email addresses
 - Gmail
-  - Support for standard gmail account authentication
-  - Retention of deleted mails
-    
-    *Purpose: to be easy to use even without additional snapshot storage.*
-  - Filtered restore
-  - Live restore without duplicate mails.
-    
-    *Currently not check email exists or not, and restoring forcely.*
+    - Support for standard gmail account authentication
+    - Retention of deleted mails
+
+      *Purpose: to be easy to use even without additional snapshot storage.*
+    - Filtered restore
+    - Live restore without duplicate mails.
+
+      *Currently not check email exists or not, and restoring forcely.*
 
 ## Install
 
 `pip install gwbackupy`
+
+## Instructions
+
+- [GCP Service Account Setup](docs/service-account-setup.md)
 
 ## Usage
 
