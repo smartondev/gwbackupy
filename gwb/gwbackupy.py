@@ -2,6 +2,8 @@ import argparse
 import threading
 import logging
 import sys
+import traceback
+
 import gwb.global_properties as global_properties
 
 from gwb.gmail import Gmail
@@ -24,8 +26,8 @@ def parse_arguments():
                         help="Logging level: {keys}".format(keys=', '.join(log_levels.keys())),
                         default='info', choices=log_levels)
     parser.add_argument('--batch-size', type=int, help='Email of the account', default=5)
-    parser.add_argument('--service-account-email', type=str, help='Email of the service account',
-                        required=True)
+    parser.add_argument('--service-account-email', type=str, default=None,
+                        help='Email of the service account (required for p12 keyfile)')
     parser.add_argument('--service-account-key-filepath', type=str,
                         help='Path to the service account key file', required=True)
     parser.add_argument('--workdir', type=str, help='Path to the workdir', required=False, default='./data')
@@ -55,33 +57,37 @@ def parse_arguments():
 
 
 def startup():
-    args = parse_arguments()
-    global_properties.working_directory = args.workdir
-    if args.service == 'gmail':
-        if args.command == 'backup':
-            gmail = Gmail(email=args.email,
-                          service_account_email=args.service_account_email,
-                          service_account_pkcs12_file_path=args.service_account_key_filepath,
-                          batch_size=args.batch_size)
-            if gmail.backup():
-                exit(0)
+    try:
+        args = parse_arguments()
+        global_properties.working_directory = args.workdir
+        if args.service == 'gmail':
+            if args.command == 'backup':
+                gmail = Gmail(email=args.email,
+                              service_account_email=args.service_account_email,
+                              service_account_file_path=args.service_account_key_filepath,
+                              batch_size=args.batch_size)
+                if gmail.backup():
+                    exit(0)
+                else:
+                    exit(1)
+            if args.command == 'restore':
+                if args.add_labels is None:
+                    args.add_labels = ['gwb']
+                gmail = Gmail(email=args.email,
+                              service_account_email=args.service_account_email,
+                              service_account_file_path=args.service_account_key_filepath,
+                              batch_size=args.batch_size,
+                              add_labels=args.add_labels)
+                if gmail.restore(to_email=args.to_email):
+                    exit(0)
+                else:
+                    exit(1)
             else:
-                exit(1)
-        if args.command == 'restore':
-            if args.add_labels is None:
-                args.add_labels = ['gwb']
-            gmail = Gmail(email=args.email,
-                          service_account_email=args.service_account_email,
-                          service_account_pkcs12_file_path=args.service_account_key_filepath,
-                          batch_size=args.batch_size,
-                          add_labels=args.add_labels)
-            if gmail.restore(to_email=args.to_email):
-                exit(0)
-            else:
-                exit(1)
-        else:
-            print('Unknown command')
-            exit(1)
+                raise Exception('Unknown command')
+    except Exception as e:
+        logging.error(e)
+        logging.debug(traceback.format_exc())
+        exit(1)
 
 
 if __name__ == '__main__':

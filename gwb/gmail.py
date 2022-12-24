@@ -27,11 +27,11 @@ class StorageDescriptor:
 class Gmail:
     """Gmail service"""
 
-    def __init__(self, email, service_account_email, service_account_pkcs12_file_path, batch_size=10, labels=None,
+    def __init__(self, email, service_account_email, service_account_file_path, batch_size=10, labels=None,
                  from_date=None, to_date=None, add_labels=None):
         self.email = email
         self.service_account_email = service_account_email
-        self.service_account_pkcs12_file_path = service_account_pkcs12_file_path
+        self.service_account_file_path = service_account_file_path
         if batch_size is None or batch_size < 1:
             batch_size = 10
         self.batch_size = batch_size
@@ -59,13 +59,28 @@ class Gmail:
                 service = self.__services[email].pop()
         if service is None:
             logging.debug('Create new service')
-            credentials = ServiceAccountCredentials.from_p12_keyfile(
-                self.service_account_email,
-                self.service_account_pkcs12_file_path,
-                'notasecret',
-                scopes=[
-                    'https://mail.google.com/',
-                ])
+            extension = self.service_account_file_path.split('.')[-1].lower()
+            credentials = None
+            scopes = [
+                'https://mail.google.com/',
+            ]
+            if extension == 'p12':
+                if self.service_account_email is None or self.service_account_email.strip() == '':
+                    raise Exception("Service account email is required for p12 keyfile")
+                credentials = ServiceAccountCredentials.from_p12_keyfile(
+                    self.service_account_email,
+                    self.service_account_file_path,
+                    'notasecret',
+                    scopes=scopes)
+            elif extension == 'json':
+                credentials = ServiceAccountCredentials.from_json_keyfile_name(
+                    self.service_account_file_path,
+                    scopes
+                )
+                pass
+
+            if credentials is None:
+                raise Exception(f'Not supported service account file extension')
 
             credentials = credentials.create_delegated(email)
             service = build('gmail', 'v1', credentials=credentials)
