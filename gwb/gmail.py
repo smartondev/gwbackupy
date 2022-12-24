@@ -121,10 +121,10 @@ class Gmail:
         logging.info(f'Local messages scanned: {len(data)}')
         return data
 
-    def __get_message_from_server(self, message_id, message_format='raw', try_count=5, sleep=10):
+    def __get_message_from_server(self, message_id, message_format='raw', try_count=5, sleep=10, email=None):
         logging.debug(f'{message_id} download from server with format: {message_format}')
         for i in range(try_count):
-            service = self.__get_service()
+            service = self.__get_service(email)
             try:
                 # message_id = message_id[:-1] + 'a'
                 result = service.users().messages().get(userId='me', id=message_id, format=message_format).execute()
@@ -132,7 +132,7 @@ class Gmail:
                 return result
             except HttpError as e:
                 if e.status_code == 404:
-                    logging.warning(f"{message_id} message not found")
+                    logging.debug(f"{message_id} message not found")
                     # message not found
                     return None
                 if i == try_count - 1:
@@ -235,7 +235,7 @@ class Gmail:
         service = self.__get_service(email)
         try:
             logging.info('Get all message ids from server...')
-            messages = []
+            messages = {}
             count = 0
             next_page_token = None
             page = 1
@@ -249,7 +249,8 @@ class Gmail:
                 # exit(-1)
                 next_page_token = data.get('nextPageToken', None)
                 count = count + len(data.get('messages', []))
-                messages.extend(data.get('messages', []))
+                for message in data.get('messages', []):
+                    messages[message.get('id')] = message
                 page += 1
                 if data.get('nextPageToken') is None:
                     break
@@ -287,9 +288,9 @@ class Gmail:
         self.__backup_labels()
         messages = self.__get_all_email_ids_from_server()
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
-            for index, message in enumerate(messages):
+            for message_id in messages:
                 # self.__backup_messages(message)
-                executor.submit(self.__backup_messages, message)
+                executor.submit(self.__backup_messages, messages[message_id])
         logging.info('Backup finished for ' + self.email)
         if self.__error_count > 0:
             logging.error('Backup failed with ' + str(self.__error_count) + ' errors')
@@ -396,28 +397,24 @@ class Gmail:
         for i in range(try_count):
             service = self.__get_service(to_email)
             try:
-                try:
-                    logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
-                    result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
-                                                               body=message_data).execute()
-                    logging.debug(f"Message uploaded {result}")
-                    logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
-                    return result
-                except HttpError as e:
-                    if i == try_count - 1:
-                        # last trys
-                        raise e
-                    logging.error(f"{restore_message_id} Exception: {e}")
-                    logging.info(f"{restore_message_id} Wait {sleep} seconds and retry..")
-                    time.sleep(sleep)
-                    continue
-                except Exception:
-                    raise
-
+                logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
+                result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
+                                                           body=message_data).execute()
+                logging.debug(f"Message uploaded {result}")
+                logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
+                return result
+            except HttpError as e:
+                if i == try_count - 1:
+                    # last trys
+                    raise e
+                logging.error(f"{restore_message_id} Exception: {e}")
+                logging.info(f"{restore_message_id} Wait {sleep} seconds and retry..")
+                time.sleep(sleep)
+                continue
             except Exception as e:
                 with self.__lock:
                     self.__error_count += 1
-                logging.error(e)
+                logging.error(f"{restore_message_id} Exception: {e}")
             finally:
                 if service is not None:
                     self.__release_service(service, to_email)
@@ -439,9 +436,9 @@ class Gmail:
         # TODO restore only used labels ??
         logging.info("Restoring labels...")
         labels_user = self.__get_user_labels_from_local()
-        labels_from_server = self.__get_user_labels_only(
+        labels_from_server_src_email = self.__get_user_labels_only(
             self.__labels_index_by_key(self.__get_labels_from_server(), 'id'))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             for label_id in labels_user:
                 executor.submit(self.__restore_label, labels_user[label_id]['name'], to_email)
         if self.add_labels is not None and len(self.add_labels) > 0:
@@ -450,20 +447,28 @@ class Gmail:
         logging.info("Labels restored")
 
         logging.info("Getting labels from server...")
-        labels_from_server_to_email = self.__get_user_labels_only(
+        labels_from_server_dest_email = self.__get_user_labels_only(
             self.__labels_index_by_key(self.__get_labels_from_server(to_email), 'id'))
-        labels_from_server_to_email_by_name = self.__labels_index_by_key(labels_from_server_to_email, 'name')
+        labels_from_server_to_email_by_name = self.__labels_index_by_key(labels_from_server_dest_email, 'name')
         if self.add_labels is not None and len(self.add_labels) > 0:
             self.__add_label_ids = []
             for label_name in self.add_labels:
                 self.__add_label_ids.append(labels_from_server_to_email_by_name[label_name]['id'])
         logging.info("Labels downloaded")
 
+        messages_from_server_dest_email = {}
+        if self.email == to_email:
+            messages_from_server_dest_email = self.__get_all_email_ids_from_server(email=to_email)
+
         logging.info("Upload messages...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in self.__emails_locally:
-                executor.submit(self.__restore_message, self.__emails_locally[message_id], to_email, labels_from_server,
-                                labels_from_server_to_email)
+                if message_id in messages_from_server_dest_email:
+                    logging.debug(f'{message_id} exists, skip it')
+                else:
+                    executor.submit(self.__restore_message, self.__emails_locally[message_id], to_email,
+                                    labels_from_server_src_email,
+                                    labels_from_server_dest_email)
 
         if self.__error_count > 0:
             logging.error('Messages uploaded with ' + str(self.__error_count) + ' errors')
