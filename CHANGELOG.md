@@ -3,6 +3,9 @@
 
 ## DEV
 
+
+## 0.4.0
+
 - Enh #8: service account json key file support
 - Enh #6: Gmail restore by message ID
 
