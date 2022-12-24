@@ -20,7 +20,7 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 ## Currently implemented functionality
 
 - Google Workspace
-  - authentication with p12 service account file.
+  - authentication with p12/json service account file.
     
     *It can be applied to the entire workspace.*
 - Gmail
@@ -60,8 +60,7 @@ Backup
 
 ```bash
 gwbackupy \
-  --service-account-email <service-account-email> \
-  --service-account-key-filepath <service-acount-p12-key-file> \
+  --service-account-key-filepath <service-acount-json-key-file> \
   --batch-size 5 \
   gmail backup \
   --email <mailbox email address>
@@ -71,8 +70,7 @@ Restore
 
 ```bash
 gwbackupy \
-  --service-account-email <service-account-email> \
-  --service-account-key-filepath <service-acount-p12-key-file> \
+  --service-account-key-filepath <service-acount-json-key-file> \
   --batch-size 5 \
   gmail restore \
   --add-label "backup-restore-1231" \
