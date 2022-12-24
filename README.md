@@ -28,8 +28,8 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
     Download all messages
   - full backup continuously
     Scanning the full mailbox, but download only the new messages.
-  - full restore to an empty mailbox
-    At the moment, it does not check whether the message already exists, so if the account is not empty, duplicate messages are generated!
+  - full restore to an empty mailbox to same or other mailbox
+  - restore deleted message
   - *partially restore with pre-filtered files at the file system level*
 
 Additional functionality under development.
