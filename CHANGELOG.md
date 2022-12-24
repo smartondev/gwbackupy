@@ -1,7 +1,11 @@
 
 # CHANGELOG
 
-## 0.3.0 under development
+## DEV
+
+- Enh #8: service account json key file support
+
+## 0.3.0
 
 - Enh #1: write message.json only if it changes - gmail backup. (kamarton)
 - Enh #2: --log-level parameter
