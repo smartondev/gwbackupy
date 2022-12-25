@@ -15,7 +15,7 @@ setup(
     description='Open source Google Workspace backup solution.',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    install_requires=['google-api-python-client~=2.70.0', 'oauth2client~=4.1.3', 'pyopenssl~=22.1'],
+    install_requires=['google-api-python-client~=2.70.0', 'oauth2client~=4.1.3', 'pyopenssl~=22.1', 'tzlocal', 'pytz'],
     scripts=['scripts/gwbackupy'],
     classifiers=[
         "Programming Language :: Python :: 3",

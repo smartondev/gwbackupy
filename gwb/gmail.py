@@ -7,7 +7,6 @@ import shutil
 import threading
 import time
 import hashlib
-import re
 import traceback
 from datetime import datetime, timezone
 from googleapiclient.discovery import build
@@ -23,8 +22,7 @@ class Gmail:
     """Gmail service"""
 
     def __init__(self, email, service_account_email, service_account_file_path, work_directory, batch_size=10,
-                 labels=None,
-                 from_date=None, to_date=None, add_labels=None):
+                 labels=None):
         self.email = email
         self.work_directory = work_directory
         self.service_account_email = service_account_email
@@ -39,10 +37,6 @@ class Gmail:
         if labels is None:
             labels = []
         self.labels = labels
-        self.from_date = from_date
-        self.to_date = to_date
-        self.add_labels = add_labels
-        self.__add_label_ids = []
 
     def __get_service(self, email=None):
         service = None
@@ -388,14 +382,13 @@ class Gmail:
             if service is not None:
                 self.__release_service(service, email)
 
-    def __restore_message(self, storage_descriptor, to_email, labels_from_server, labels_from_server_to_email,
-                          try_count=5,
-                          sleep=10):
+    def __restore_message(self, storage_descriptor, to_email, labels_from_server, labels_from_server_to_email
+                          , add_label_ids, try_count=5, sleep=10):
         logging.debug('Restoring message ' + storage_descriptor.object)
         meta = json.load(open(storage_descriptor.get_latest_mutation_metadata_file_path()))
         restore_message_id = meta.get('id')
         logging.debug(f"{restore_message_id} {meta}")
-        label_ids = self.__add_label_ids.copy()
+        label_ids = add_label_ids.copy()
         for label_id in meta.get('labelIds', []):
             if self.__is_user_label_id(label_id):
                 label = self.__get_label_from_index_label_id(label_id, labels_from_server,
@@ -455,7 +448,8 @@ class Gmail:
             raise Exception('Label ' + labels_from[label_id]['name'] + ' not found in labels_to')
         return labels_to[labels_from[label_id]['name']]
 
-    def restore(self, to_email=None):
+    def restore(self, to_email=None, filter_timezone=None, filter_date_from=None, filter_date_to=None,
+                restore_deleted=False, add_labels=None):
         if to_email is None:
             to_email = self.email
         self.__error_count = 0
@@ -468,8 +462,8 @@ class Gmail:
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             for label_id in labels_user:
                 executor.submit(self.__restore_label, labels_user[label_id]['name'], to_email)
-        if self.add_labels is not None and len(self.add_labels) > 0:
-            for label_name in self.add_labels:
+        if add_labels is not None and len(add_labels) > 0:
+            for label_name in add_labels:
                 self.__restore_label(label_name, to_email)
         logging.info("Labels restored")
 
@@ -477,10 +471,11 @@ class Gmail:
         labels_from_server_dest_email = self.__get_user_labels_only(
             self.__labels_index_by_key(self.__get_labels_from_server(to_email), 'id'))
         labels_from_server_to_email_by_name = self.__labels_index_by_key(labels_from_server_dest_email, 'name')
-        if self.add_labels is not None and len(self.add_labels) > 0:
-            self.__add_label_ids = []
-            for label_name in self.add_labels:
-                self.__add_label_ids.append(labels_from_server_to_email_by_name[label_name]['id'])
+        add_label_ids = []
+        if add_labels is not None and len(add_labels) > 0:
+            add_label_ids = []
+            for label_name in add_labels:
+                add_label_ids.append(labels_from_server_to_email_by_name[label_name]['id'])
         logging.info("Labels downloaded")
 
         messages_from_server_dest_email = {}
@@ -495,7 +490,8 @@ class Gmail:
                 else:
                     executor.submit(self.__restore_message, self.__emails_locally[message_id], to_email,
                                     labels_from_server_src_email,
-                                    labels_from_server_dest_email)
+                                    labels_from_server_dest_email,
+                                    add_label_ids)
 
         if self.__error_count > 0:
             logging.error('Messages uploaded with ' + str(self.__error_count) + ' errors')

@@ -3,6 +3,8 @@ import threading
 import logging
 import sys
 import traceback
+from tzlocal import get_localzone
+import pytz as pytz
 
 import gwb.global_properties as global_properties
 
@@ -44,6 +46,12 @@ def parse_arguments():
                                       help='Destination email account, if not specified, then --email is used')
     gmail_restore_parser.add_argument('--add-label', type=str, action='append',
                                       help='Add label to restored emails', default=None, dest='add_labels')
+    gmail_restore_parser.add_argument('--restore-deleted', type=bool, help='Restore deleted emails',
+                                      default=False)
+    gmail_restore_parser.add_argument('--filter-date-from', type=str, help='Filter date from', default=None)
+    gmail_restore_parser.add_argument('--filter-date-to', type=str, help='Filter date to', default=None)
+    gmail_restore_parser.add_argument('--filter-timezone', type=lambda s: pytz.timezone(s),
+                                      help='Filter date time zone', default=get_localzone())
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
@@ -78,9 +86,14 @@ def startup():
                               service_account_email=args.service_account_email,
                               service_account_file_path=args.service_account_key_filepath,
                               batch_size=args.batch_size,
-                              add_labels=args.add_labels,
                               work_directory=args.workdir)
-                if gmail.restore(to_email=args.to_email):
+                if gmail.restore(to_email=args.to_email,
+                                 filter_timezone=args.filter_timezone,
+                                 filter_date_from=args.filter_date_from,
+                                 filter_date_to=args.filter_date_to,
+                                 restore_deleted=args.restore_deleted,
+                                 add_labels=args.add_labels
+                                 ):
                     exit(0)
                 else:
                     exit(1)
