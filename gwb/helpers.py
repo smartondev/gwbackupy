@@ -1,15 +1,14 @@
 import base64
+import datetime
 
-import gwb.global_properties as global_properties
 
-
-def get_path(email, file=None, extension=None, subdir=None, type=None):
-    path = global_properties.working_directory + "/" + email
-    if type is not None:
-        if isinstance(type, list):
-            path += '/' + '/'.join(type)
+def get_path(account, root, file=None, extension=None, subdir=None, group=None, mutation=None, deleted=False):
+    path = root + "/" + account
+    if group is not None:
+        if isinstance(group, list):
+            path += '/' + '/'.join(group)
         else:
-            path += '/' + type
+            path += '/' + group
     if subdir is not None:
         if isinstance(subdir, list):
             path += '/' + '/'.join(subdir)
@@ -17,6 +16,13 @@ def get_path(email, file=None, extension=None, subdir=None, type=None):
             path += '/' + subdir
     if file is not None:
         path += '/' + file
+    if mutation is not None:
+        if isinstance(mutation, datetime.datetime):
+            path += mutation.strftime("%d%m%Y%H%M%S")
+        else:
+            path += '.' + mutation
+    if deleted:
+        path += '.deleted'
     if extension is not None:
         path += '.' + extension
     return path

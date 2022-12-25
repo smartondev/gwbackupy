@@ -45,8 +45,9 @@ def parse_arguments():
     gmail_restore_parser.add_argument('--add-label', type=str, action='append',
                                       help='Add label to restored emails', default=None, dest='add_labels')
 
-    args = parser.parse_args()
+    args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
+    logging.addLevelName(global_properties.log_finest, 'FINEST')
     logging.basicConfig(
         # filename="logfile.log",
         stream=sys.stdout,
@@ -59,13 +60,13 @@ def parse_arguments():
 def startup():
     try:
         args = parse_arguments()
-        global_properties.working_directory = args.workdir
         if args.service == 'gmail':
             if args.command == 'backup':
                 gmail = Gmail(email=args.email,
                               service_account_email=args.service_account_email,
                               service_account_file_path=args.service_account_key_filepath,
-                              batch_size=args.batch_size)
+                              batch_size=args.batch_size,
+                              work_directory=args.workdir)
                 if gmail.backup():
                     exit(0)
                 else:
@@ -77,7 +78,8 @@ def startup():
                               service_account_email=args.service_account_email,
                               service_account_file_path=args.service_account_key_filepath,
                               batch_size=args.batch_size,
-                              add_labels=args.add_labels)
+                              add_labels=args.add_labels,
+                              work_directory=args.workdir)
                 if gmail.restore(to_email=args.to_email):
                     exit(0)
                 else:

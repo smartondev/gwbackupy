@@ -1,3 +1,2 @@
-working_directory = './data'
-version = '0.4.0'
+version = '0.5.0-dev'
 log_finest = 5
