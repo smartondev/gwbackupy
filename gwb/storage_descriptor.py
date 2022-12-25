@@ -61,3 +61,7 @@ class StorageDescriptor:
     @staticmethod
     def is_ext_hash(filename):
         return filename.endswith('.hash')
+
+    @staticmethod
+    def is_ext_tmp(filename):
+        return filename.endswith('.tmp')

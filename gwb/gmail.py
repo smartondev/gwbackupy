@@ -101,6 +101,14 @@ class Gmail:
                 parts = StorageDescriptor.parse(file)
                 logging.log(global_properties.log_finest, parts)
                 if parts is None:
+                    logging.warning(f'Unknown file: {file_path}')
+                    continue
+                if StorageDescriptor.is_ext_tmp(file):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        logging.error(f'{file_path} delete fail: {e}')
+                        logging.debug(traceback.format_exc())
                     continue
 
                 object_id = parts.get('id')
@@ -158,18 +166,29 @@ class Gmail:
         sha1 = hashlib.sha1(raw_message).hexdigest()
         hash_file = get_path(self.email, self.work_directory, message_id, 'hash', email_dates, group=path_type)
         message_file = get_path(self.email, self.work_directory, message_id, 'eml.gz', email_dates, group=path_type)
+        message_file_temp = f'{message_file}.tmp'
+        hash_file_temp = f'{hash_file}.tmp'
         try:
-            with gzip.open(message_file, "wb", compresslevel=9) as binary_file:
+            with gzip.open(message_file_temp, "wb", compresslevel=9) as binary_file:
                 binary_file.write(raw_message)
-            with open(hash_file, 'w') as f:
+            shutil.move(message_file_temp, message_file)
+            with open(hash_file_temp, 'w') as f:
                 f.write(md5 + '\n' + sha1)
+            shutil.move(hash_file_temp, hash_file)
         except Exception as e:
             logging.error(e)
             logging.debug(traceback.format_exc())
-            if os.path.exists(hash_file):
-                os.remove(hash_file)
-            if os.path.exists(message_file):
-                os.remove(message_file)
+            files = [
+                hash_file, hash_file_temp,
+                message_file, message_file_temp
+            ]
+            for file in files:
+                try:
+                    if os.path.exists(file):
+                        os.remove(file)
+                except Exception as fe:
+                    logging.error(fe)
+                    logging.debug(traceback.format_exc())
             raise
 
     def __required_message_download_format(self, message):
@@ -230,7 +249,12 @@ class Gmail:
                         write_meta = False
             if write_meta:
                 logging.debug(f'{message_id} Meta data is changed, writing to {metafile}')
-                json.dump(data, open(metafile, 'w'))
+                metafile_tmp = f'{metafile}.tmp'
+                logging.debug(f'{message_id} write to temp file: {metafile_tmp}')
+                json.dump(data, open(metafile_tmp, 'w'))
+                logging.debug(f'{message_id} temp file rename')
+                shutil.move(metafile_tmp, metafile)
+                logging.debug(f'{message_id} temp file rename successfully')
             else:
                 logging.debug(f'{message_id} Meta data is not changed, skip file writing')
         except Exception as e:
