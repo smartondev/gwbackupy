@@ -14,18 +14,20 @@ def get_path(account, root, file=None, extension=None, subdir=None, group=None, 
             path += '/' + '/'.join(subdir)
         else:
             path += '/' + subdir
-    if file is not None:
-        path += '/' + file
+    if file is None:
+        return path
+
+    file_parts = [file]
     if mutation is not None:
         if isinstance(mutation, datetime.datetime):
-            path += mutation.strftime("%d%m%Y%H%M%S")
+            file_parts.append(mutation.strftime("%d%m%Y%H%M%S"))
         else:
-            path += '.' + mutation
+            file_parts.append(mutation)
     if deleted:
-        path += '.deleted'
+        file_parts.append('deleted')
     if extension is not None:
-        path += '.' + extension
-    return path
+        file_parts.append(extension)
+    return path + '/' + '.'.join(file_parts)
 
 
 def str_trim(text, length, postfix="..."):
