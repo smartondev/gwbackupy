@@ -25,6 +25,8 @@ def parse_arguments():
     }
 
     parser = argparse.ArgumentParser(description='Google Workspace Backup Tool ' + global_properties.version)
+    parser.add_argument('--timezone', type=lambda s: pytz.timezone(s),
+                        help='time zone', default=get_localzone())
     parser.add_argument('--log-level', type=str.lower,
                         help="Logging level: {keys}".format(keys=', '.join(log_levels.keys())),
                         default='info', choices=log_levels)
@@ -51,8 +53,6 @@ def parse_arguments():
                                       default=False)
     gmail_restore_parser.add_argument('--filter-date-from', type=str, help='Filter date from', default=None)
     gmail_restore_parser.add_argument('--filter-date-to', type=str, help='Filter date to', default=None)
-    gmail_restore_parser.add_argument('--filter-timezone', type=lambda s: pytz.timezone(s),
-                                      help='Filter date time zone', default=get_localzone())
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
@@ -66,7 +66,7 @@ def parse_arguments():
     return args
 
 
-def startup():
+def cli_startup():
     try:
         args = parse_arguments()
         storage = FileStorage(args.workdir + '/' + args.email)
@@ -90,7 +90,7 @@ def startup():
                               batch_size=args.batch_size,
                               storage=storage)
                 if gmail.restore(to_email=args.to_email,
-                                 filter_timezone=args.filter_timezone,
+                                 timezone=args.timezone,
                                  filter_date_from=args.filter_date_from,
                                  filter_date_to=args.filter_date_to,
                                  restore_deleted=args.restore_deleted,
@@ -108,4 +108,4 @@ def startup():
 
 
 if __name__ == '__main__':
-    startup()
+    cli_startup()

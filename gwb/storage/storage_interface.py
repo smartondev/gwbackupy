@@ -5,7 +5,8 @@ from operator import itemgetter
 from typing import Callable, IO
 
 Path = str
-Data = str | bytes | Callable[[IO], None] | IO
+DataCall = Callable[[IO[bytes]], None]
+Data = str | bytes | DataCall | IO
 
 
 class ObjectDescriptor:
@@ -115,11 +116,11 @@ class StorageInterface:
     def initialize(self, path: Path):
         pass
 
-    def getd(self, desc: ObjectDescriptor) -> IO | None:
+    def getd(self, desc: ObjectDescriptor) -> IO[bytes] | None:
         return self.get(path=desc.path, oid=desc.object_id, mime=desc.mime, mutation=desc.mutation,
                         deleted=desc.deleted)
 
-    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO | None:
+    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO[bytes] | None:
         pass
 
     def put(self, path: Path, oid: str, mime: str, data: Data, mutation: str = None,

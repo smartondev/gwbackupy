@@ -10,6 +10,8 @@ import time
 import hashlib
 import traceback
 from datetime import datetime, timezone
+
+import tzlocal
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
@@ -133,11 +135,14 @@ class Gmail:
     def __backup_messages(self, message, local_messages: dict[str, ObjectList[ObjectDescriptor]]):
         message_id = message.get('id', 'UNKNOWN')  # for logging
         try:
+            # if message_id != '18548c887279e2e5':
+            #     raise Exception('SKIP')
             message_id = message['id']  # throw error if not exists
             latest_meta = None
             if message_id in local_messages:
                 latest_meta = local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_json)
             is_new = latest_meta is None
+            logging.debug(f'{message_id} is new')
             if not is_new and latest_meta.deleted:
                 raise RuntimeError('Message is already deleted')
             # TODO: option for force raw mode
@@ -171,6 +176,7 @@ class Gmail:
                 with self.storage.getd(latest_meta) as mf:
                     if mf is not None:
                         d = json.load(mf)
+                        logging.log(global_properties.log_finest, f'{message_id} metadata is loaded from local')
                         if d == data:
                             write_meta = False
                     else:
@@ -178,9 +184,9 @@ class Gmail:
 
             if write_meta:
                 mutation = StorageInterface.new_mutation()
-                logging.debug(f'{message_id} Meta data is changed')
                 success = self.storage.put(path=path, oid=message_id, mime=StorageInterface.mime_json,
                                            data=json.dumps(data), mutation=mutation)
+                logging.info(f'{message_id} Meta data is saved')
                 if not success:
                     raise Exception('Meta data put failed')
             else:
@@ -190,6 +196,8 @@ class Gmail:
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
+            # if str(e) == 'SKIP':
+            #     return
             logging.error(f'{message_id} {e}')
             logging.error(traceback.format_exc())
 
@@ -236,6 +244,7 @@ class Gmail:
             self.__release_service(service, email)
 
     def __backup_labels(self):
+        # TODO: save only if changed
         logging.info('Backing up labels...')
         labels = self.__get_labels_from_server()
         self.storage.put(path=Gmail.path_root, oid='labels', mime=StorageInterface.mime_json,
@@ -263,7 +272,6 @@ class Gmail:
         logging.info('Processing...')
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in messages:
-                # self.__backup_messages(message)
                 executor.submit(self.__backup_messages, messages[message_id], local_messages)
         logging.info('Processed')
         if self.__error_count > 0:
@@ -411,8 +419,10 @@ class Gmail:
             raise Exception('Label ' + labels_from[label_id]['name'] + ' not found in labels_to')
         return labels_to[labels_from[label_id]['name']]
 
-    def restore(self, to_email=None, filter_timezone=None, filter_date_from=None, filter_date_to=None,
+    def restore(self, to_email=None, timezone=None, filter_date_from=None, filter_date_to=None,
                 restore_deleted=False, add_labels=None):
+        if timezone is None:
+            timezone = tzlocal.get_localzone()
         if to_email is None:
             to_email = self.email
         self.__error_count = 0

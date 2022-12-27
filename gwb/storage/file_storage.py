@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import io
 import logging
 import os
 import re
 import shutil
 import traceback
-from contextlib import nullcontext
 from typing import IO
 
-from gwb.storage.storage_interface import StorageInterface, Path, Data, ObjectFilter, ObjectDescriptor, ObjectList
+from gwb.storage.storage_interface import StorageInterface, Path, Data, ObjectFilter, ObjectDescriptor, ObjectList, \
+    DataCall
 
 
 class FileStorage(StorageInterface):
@@ -19,7 +20,7 @@ class FileStorage(StorageInterface):
     def __init__(self, root: str):
         self.root = root
 
-    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO | None:
+    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO[bytes] | None:
         file_path = self.__get_path(path=path, oid=oid, mime=mime, mutation=mutation, deleted=deleted)
         if not os.path.exists(file_path):
             return None
@@ -31,6 +32,7 @@ class FileStorage(StorageInterface):
         logging.debug(f'Put object {file_path}')
         result = self.__write(file_path=file_path, data=data)
         if result:
+            logging.debug(f'{file_path} put successfully')
             return True
         logging.error(f'File put fail ({file_path})')
         return False
@@ -86,7 +88,7 @@ class FileStorage(StorageInterface):
         if mutation is not None:
             p += f'.{mutation}'
         if deleted:
-            p += f'.{deleted}'
+            p += f'.deleted'
         if mime is not None:
             p += f'.{FileStorage.__mime2extension(mime)}'
         return p
@@ -156,10 +158,12 @@ class FileStorage(StorageInterface):
                         f.write(data)
                     elif isinstance(data, str):
                         f.write(bytes(data, 'utf-8'))
-                    elif isinstance(data, IO):
+                    elif isinstance(data, io.BufferedReader):
                         f.write(data.read())
-                    else:
+                    elif callable(data):
                         data(f)
+                    else:
+                        raise RuntimeError(f'Not supported data type: {type(data)}')
             except BaseException as e:
                 logging.error(f'Temporary file writing fail {file_path_tmp}: {e}')
                 logging.error(traceback.format_exc())
@@ -170,7 +174,6 @@ class FileStorage(StorageInterface):
                 logging.error(f'File rename fail {file_path_tmp} -> {file_path}: {e}')
                 logging.error(traceback.format_exc())
                 return False
+            return True
         finally:
             FileStorage.__remove(file_path_tmp)
-            FileStorage.__remove(file_path)
-        return True
