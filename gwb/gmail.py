@@ -1,4 +1,5 @@
 import concurrent.futures
+import copy
 import gzip
 import json
 import logging
@@ -12,19 +13,21 @@ from datetime import datetime, timezone
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
-import gwb.global_properties as global_properties
 
+from gwb import global_properties
 from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim
-from gwb.storage_descriptor import StorageDescriptor
+from gwb.storage.storage_interface import StorageInterface, ObjectList, ObjectDescriptor
 
 
 class Gmail:
     """Gmail service"""
+    path_root = '/gmail'
+    path_messages = f'{path_root}/messages'
 
-    def __init__(self, email, service_account_email, service_account_file_path, work_directory, batch_size=10,
-                 labels=None):
+    def __init__(self, email: str, service_account_email: str, service_account_file_path: str,
+                 storage: StorageInterface, batch_size: int = 10, labels=None):
         self.email = email
-        self.work_directory = work_directory
+        self.storage = storage
         self.service_account_email = service_account_email
         self.service_account_file_path = service_account_file_path
         if batch_size is None or batch_size < 1:
@@ -32,7 +35,6 @@ class Gmail:
         self.batch_size = batch_size
         self.__lock = threading.RLock()
         self.__services = {}
-        self.__emails_locally = self.__get_all_messages_from_local()
         self.__error_count = 0
         if labels is None:
             labels = []
@@ -88,44 +90,8 @@ class Gmail:
         with self.__lock:
             self.__services[email].append(service)
 
-    def __get_all_messages_from_local(self):
-        logging.info("Scanning messages from local")
-        path = get_path(self.email, self.work_directory, group=['gmail', 'messages'])
-        data = {}
-        for path, _, filenames in os.walk(path):
-            for file in filenames:
-                file_path = os.path.join(path, file)
-                if '.' not in file:
-                    continue
-
-                parts = StorageDescriptor.parse(file)
-                logging.log(global_properties.log_finest, parts)
-                if parts is None:
-                    logging.warning(f'Unknown file: {file_path}')
-                    continue
-                if StorageDescriptor.is_ext_tmp(file):
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        logging.error(f'{file_path} delete fail: {e}')
-                        logging.debug(traceback.format_exc())
-                    continue
-
-                object_id = parts.get('id')
-                if object_id not in data.keys():
-                    logging.log(global_properties.log_finest, f"{object_id} message found")
-                    data[object_id] = StorageDescriptor(path=path, object_id=object_id)
-                if StorageDescriptor.is_ext_json(file):
-                    data[object_id].add_mutation(file, parts)
-                if StorageDescriptor.is_ext_eml(file):
-                    data[object_id].object = file_path
-                if StorageDescriptor.is_ext_hash(file):
-                    data[object_id].object_hash = file_path
-        # for key in data:
-        #     print(key, data[key].path, data[key].mutations, data[key].get_latest_mutation_metadata_file_path())
-        # exit(-1)
-        logging.info(f'Local messages scanned: {len(data)}')
-        return data
+    def __get_local_messages_latest_mutations_only(self):
+        pass
 
     def __get_message_from_server(self, message_id, message_format='raw', try_count=5, sleep=10, email=None):
         logging.debug(f'{message_id} download from server with format: {message_format}')
@@ -146,7 +112,7 @@ class Gmail:
                     logging.error(f"{message_id} message download failed")
                     raise e
                 logging.error(e)
-                logging.debug(traceback.format_exc())
+                logging.error(traceback.format_exc())
                 logging.info(f"{message_id} Wait {sleep} seconds and retry..")
                 time.sleep(sleep)
                 continue
@@ -155,113 +121,77 @@ class Gmail:
             finally:
                 self.__release_service(service)
 
-    def __remove_from_emails_locally(self, message_id):
-        with self.__lock:
-            if message_id in self.__emails_locally.keys():
-                del self.__emails_locally[message_id]
-
-    def __store_message_file(self, message_id, raw_message, email_dates, path_type):
+    def __store_message_file(self, message_id, raw_message, path):
         logging.debug("Store message {id}".format(id=message_id))
-        md5 = hashlib.md5(raw_message).hexdigest()
-        sha1 = hashlib.sha1(raw_message).hexdigest()
-        hash_file = get_path(self.email, self.work_directory, message_id, 'hash', email_dates, group=path_type)
-        message_file = get_path(self.email, self.work_directory, message_id, 'eml.gz', email_dates, group=path_type)
-        message_file_temp = f'{message_file}.tmp'
-        hash_file_temp = f'{hash_file}.tmp'
-        try:
-            with gzip.open(message_file_temp, "wb", compresslevel=9) as binary_file:
-                binary_file.write(raw_message)
-            shutil.move(message_file_temp, message_file)
-            with open(hash_file_temp, 'w') as f:
-                f.write(md5 + '\n' + sha1)
-            shutil.move(hash_file_temp, hash_file)
-        except Exception as e:
-            logging.error(e)
-            logging.debug(traceback.format_exc())
-            files = [
-                hash_file, hash_file_temp,
-                message_file, message_file_temp
-            ]
-            for file in files:
-                try:
-                    if os.path.exists(file):
-                        os.remove(file)
-                except Exception as fe:
-                    logging.error(fe)
-                    logging.debug(traceback.format_exc())
-            raise
+        mutation = self.storage.new_mutation()
+        result = self.storage.put(path=path, oid=message_id,
+                                  mime=StorageInterface.mime_eml_gz,
+                                  data=gzip.compress(raw_message, compresslevel=9), mutation=mutation)
+        if not result:
+            raise Exception('Mail message save failed')
 
-    def __required_message_download_format(self, message):
-        raw_format = 'raw'
-        with self.__lock:
-            local_data = self.__emails_locally.get(message['id'], None)
-        if local_data is None:
-            return raw_format
-        if local_data.object is None:
-            return raw_format
-        if os.path.getsize(local_data.object) == 0:
-            return raw_format
-        if local_data.object_hash is None:
-            return raw_format
-        if os.path.getsize(local_data.object_hash) == 0:
-            return raw_format
-        return 'minimal'
-
-    def __backup_messages(self, message):
+    def __backup_messages(self, message, local_messages: dict[str, ObjectList[ObjectDescriptor]]):
         message_id = message.get('id', 'UNKNOWN')  # for logging
         try:
-            # TODO: option for force raw mode
             message_id = message['id']  # throw error if not exists
-            path_type = ['gmail', 'messages']
-            message_format = self.__required_message_download_format(message)
-            storage_descriptor = self.__emails_locally.get(message_id)
-            is_new = storage_descriptor is None
-            if not is_new and storage_descriptor.deleted:
+            latest_meta = None
+            if message_id in local_messages:
+                latest_meta = local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_json)
+            is_new = latest_meta is None
+            if not is_new and latest_meta.deleted:
                 raise RuntimeError('Message is already deleted')
+            # TODO: option for force raw mode
+            message_format = 'raw'
+            if not is_new and (
+                    local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_eml_gz) or
+                    local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_eml)):
+                message_format = 'minimal'
             data = self.__get_message_from_server(message_id, message_format)
             if data is None:
-                # message not found
+                # (deleted)
+                logging.info(f'{message_id} is not found')
                 return
-            # TODO: Is it in the right place here?
-            self.__remove_from_emails_locally(message_id)
 
             subject = str_trim(data.get('snippet', ''), 64)
-            logging.debug(f'{message_id} Subject: {subject}')
-            date_group = datetime.fromtimestamp(int(data['internalDate']) / 1000, tz=timezone.utc) \
+            if is_new:
+                logging.info(f'{message_id} New message, snippet: {subject}')
+            else:
+                logging.debug(f'{message_id} Snippet: {subject}')
+            sub_paths = datetime.fromtimestamp(int(data['internalDate']) / 1000, tz=timezone.utc) \
                 .strftime('%Y-%m-%d').split('-', 1)
 
-            path = get_path(self.email, self.work_directory, subdir=date_group, group=path_type)
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
+            path = f'{Gmail.path_messages}/{sub_paths[0]}/{sub_paths[1]}'
             if 'raw' in data.keys():
                 raw = decode_base64url(data.get('raw'))
-                self.__store_message_file(message_id, raw, date_group, path_type)
+                self.__store_message_file(message_id, raw, path)
                 data.pop('raw')
-            metafile = get_path(self.email, self.work_directory, message_id, 'json',
-                                date_group, group=path_type, mutation=datetime.utcnow())
             write_meta = True
             if not is_new:
-                current_metafile = storage_descriptor.get_latest_mutation_metadata_file_path()
-                logging.debug(f'{message_id} current metafile: {current_metafile}')
-                if os.path.exists(current_metafile):
-                    d = json.load(open(current_metafile))
-                    if d == data:
-                        write_meta = False
+                logging.log(global_properties.log_finest, f'{message_id} load local version of meta data')
+                with self.storage.getd(latest_meta) as mf:
+                    if mf is not None:
+                        d = json.load(mf)
+                        if d == data:
+                            write_meta = False
+                    else:
+                        logging.warning(f'{message_id} local version of meta data is not exists')
+
             if write_meta:
-                logging.debug(f'{message_id} Meta data is changed, writing to {metafile}')
-                metafile_tmp = f'{metafile}.tmp'
-                logging.debug(f'{message_id} write to temp file: {metafile_tmp}')
-                json.dump(data, open(metafile_tmp, 'w'))
-                logging.debug(f'{message_id} temp file rename')
-                shutil.move(metafile_tmp, metafile)
-                logging.debug(f'{message_id} temp file rename successfully')
+                mutation = StorageInterface.new_mutation()
+                logging.debug(f'{message_id} Meta data is changed')
+                success = self.storage.put(path=path, oid=message_id, mime=StorageInterface.mime_json,
+                                           data=json.dumps(data), mutation=mutation)
+                if not success:
+                    raise Exception('Meta data put failed')
             else:
-                logging.debug(f'{message_id} Meta data is not changed, skip file writing')
+                logging.debug(f'{message_id} Meta data is not changed, skip put')
+            if message_id in local_messages:
+                del local_messages[message_id]
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
             logging.error(f'{message_id} {e}')
-            logging.debug(traceback.format_exc())
+            logging.error(traceback.format_exc())
 
     def __get_all_email_ids_from_server(self, email=None):
         if email is None:
@@ -308,43 +238,52 @@ class Gmail:
     def __backup_labels(self):
         logging.info('Backing up labels...')
         labels = self.__get_labels_from_server()
-        path_type_labels = ['gmail']
-        path = get_path(self.email, root=self.work_directory, group=path_type_labels)
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-        logging.info('Backing up labels...')
-        json.dump(labels,
-                  open(get_path(self.email, self.work_directory, 'labels.json', group=path_type_labels), 'w'))
+        self.storage.put(path=Gmail.path_root, oid='labels', mime=StorageInterface.mime_json,
+                         mutation=StorageInterface.new_mutation(),
+                         data=json.dumps(labels))
+        logging.info('Backing up labels successfully')
 
     def backup(self):
         logging.info('Starting backup for ' + self.email)
         self.__error_count = 0
 
         self.__backup_labels()
+        logging.info("Scanning local messages...")
+        local_messages: dict[str, ObjectList[ObjectDescriptor]] = {}
+        local_messages_all = self.storage.find(Gmail.path_messages)
+        logging.info(f'Local items: {len(local_messages_all)}')
+        for desc in local_messages_all:
+            if desc.object_id in local_messages:
+                continue
+            local_messages[desc.object_id] = local_messages_all.get_latest_mutations(desc.object_id)
+        del local_messages_all
+        logging.info(f'Local messages: {len(local_messages)}')
+
         messages = self.__get_all_email_ids_from_server()
         logging.info('Processing...')
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in messages:
                 # self.__backup_messages(message)
-                executor.submit(self.__backup_messages, messages[message_id])
+                executor.submit(self.__backup_messages, messages[message_id], local_messages)
         logging.info('Processed')
         if self.__error_count > 0:
             logging.error('Backup failed with ' + str(self.__error_count) + ' errors')
             return False
-        # no error founds
-        # print(self.__emails_locally)
-        logging.info('Mark as deleted...')
-        for message_id in self.__emails_locally:
-            data = self.__emails_locally[message_id]
-            if data.deleted:
+        logging.info('Mark as deletes...')
+        for message_id in local_messages:
+            olist = local_messages[message_id]
+            desc = olist.get_latest_mutation(message_id, StorageInterface.mime_json)
+            if desc.deleted:
                 # already deleted, skip it
                 continue
             logging.debug(f'{message_id} mark as deleted in local storage...')
-            new_mutation = data.get_new_mutation_metadata_file_path(deleted=True)
-            current_mutation = data.get_latest_mutation_metadata_file_path()
-            logging.debug(f'{message_id} create a copy with deleted flag ({current_mutation} -> {new_mutation})')
-            shutil.copy2(current_mutation, new_mutation)
-            logging.debug(f'{message_id} deleted copy is created successfully')
+            mutation = self.storage.new_mutation()
+            new_desc = copy.copy(desc)
+            new_desc.deleted = True
+            new_desc.mutation = mutation
+            logging.debug(f'{message_id} {desc} -> {new_desc}')
+            with self.storage.getd(desc) as f:
+                self.storage.putd(new_desc, f)
             logging.info(f'{message_id} marked as deleted')
         logging.info('Mark as deleted: complete')
         logging.info('Backup finished for ' + self.email)

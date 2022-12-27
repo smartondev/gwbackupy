@@ -9,6 +9,7 @@ import pytz as pytz
 import gwb.global_properties as global_properties
 
 from gwb.gmail import Gmail
+from gwb.storage.file_storage import FileStorage
 
 lock = threading.Lock()
 
@@ -68,13 +69,14 @@ def parse_arguments():
 def startup():
     try:
         args = parse_arguments()
+        storage = FileStorage(args.workdir + '/' + args.email)
         if args.service == 'gmail':
             if args.command == 'backup':
                 gmail = Gmail(email=args.email,
                               service_account_email=args.service_account_email,
                               service_account_file_path=args.service_account_key_filepath,
                               batch_size=args.batch_size,
-                              work_directory=args.workdir)
+                              storage=storage)
                 if gmail.backup():
                     exit(0)
                 else:
@@ -86,7 +88,7 @@ def startup():
                               service_account_email=args.service_account_email,
                               service_account_file_path=args.service_account_key_filepath,
                               batch_size=args.batch_size,
-                              work_directory=args.workdir)
+                              storage=storage)
                 if gmail.restore(to_email=args.to_email,
                                  filter_timezone=args.filter_timezone,
                                  filter_date_from=args.filter_date_from,
@@ -101,7 +103,7 @@ def startup():
                 raise Exception('Unknown command')
     except Exception as e:
         logging.error(e)
-        logging.debug(traceback.format_exc())
+        logging.error(traceback.format_exc())
         exit(1)
 
 

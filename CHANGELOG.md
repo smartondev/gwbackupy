@@ -3,6 +3,9 @@
 
 ## DEV
 
+- Enh   : temporary file based creation for minimize invalid files states
+- Enh   : Separation of service parameters for easy reusability in another python library or package
+
 
 ## 0.4.0
 
