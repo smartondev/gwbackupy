@@ -1,15 +1,13 @@
+from __future__ import annotations
+
 import concurrent.futures
-import copy
 import gzip
 import json
 import logging
 import os
-import shutil
 import threading
 import time
-import hashlib
 import traceback
-from datetime import datetime, timezone
 
 import tzlocal
 from googleapiclient.discovery import build
@@ -18,13 +16,13 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from gwb import global_properties
 from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim
-from gwb.storage.storage_interface import StorageInterface, ObjectList, ObjectDescriptor
+from gwb.storage.storage_interface import StorageInterface, LinkList, LinkInterface
 
 
 class Gmail:
     """Gmail service"""
-    path_root = '/gmail'
-    path_messages = f'{path_root}/messages'
+    object_id_labels = '--gwbackupy-labels--'
+    """Gmail's special object ID for storing labels"""
 
     def __init__(self, email: str, service_account_email: str, service_account_file_path: str,
                  storage: StorageInterface, batch_size: int = 10, labels=None):
@@ -123,33 +121,32 @@ class Gmail:
             finally:
                 self.__release_service(service)
 
-    def __store_message_file(self, message_id, raw_message, path):
+    def __store_message_file(self, message_id: str, raw_message: bytes, create_timestamp: float):
         logging.debug("Store message {id}".format(id=message_id))
-        mutation = self.storage.new_mutation()
-        result = self.storage.put(path=path, oid=message_id,
-                                  mime=StorageInterface.mime_eml_gz,
-                                  data=gzip.compress(raw_message, compresslevel=9), mutation=mutation)
-        if not result:
+        link = self.storage.new_link(object_id=message_id, extension='eml.gz',
+                                     created_timestamp=create_timestamp) \
+            .set_properties({LinkInterface.property_object: True})
+        result = self.storage.put(link, data=gzip.compress(raw_message, compresslevel=9))
+        if result:
+            logging.debug(f'{message_id} message is saves successfully')
+        else:
             raise Exception('Mail message save failed')
 
-    def __backup_messages(self, message, local_messages: dict[str, ObjectList[ObjectDescriptor]]):
+    def __backup_messages(self, message, stored_messages: dict[int, LinkInterface]):
         message_id = message.get('id', 'UNKNOWN')  # for logging
         try:
             # if message_id != '18548c887279e2e5':
             #     raise Exception('SKIP')
             message_id = message['id']  # throw error if not exists
-            latest_meta = None
-            if message_id in local_messages:
-                latest_meta = local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_json)
-            is_new = latest_meta is None
-            logging.debug(f'{message_id} is new')
-            if not is_new and latest_meta.deleted:
-                raise RuntimeError('Message is already deleted')
+            latest_meta_link = None
+            if message_id in stored_messages:
+                latest_meta_link = stored_messages[message_id][0]
+            is_new = latest_meta_link is None
+            if is_new:
+                logging.debug(f'{message_id} is new')
             # TODO: option for force raw mode
             message_format = 'raw'
-            if not is_new and (
-                    local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_eml_gz) or
-                    local_messages[message_id].get_latest_mutation(message_id, StorageInterface.mime_eml)):
+            if not is_new and stored_messages[message_id][1] is not None:
                 message_format = 'minimal'
             data = self.__get_message_from_server(message_id, message_format)
             if data is None:
@@ -162,37 +159,41 @@ class Gmail:
                 logging.info(f'{message_id} New message, snippet: {subject}')
             else:
                 logging.debug(f'{message_id} Snippet: {subject}')
-            sub_paths = datetime.fromtimestamp(int(data['internalDate']) / 1000, tz=timezone.utc) \
-                .strftime('%Y-%m-%d').split('-', 1)
 
-            path = f'{Gmail.path_messages}/{sub_paths[0]}/{sub_paths[1]}'
+            create_timestamp = int(data['internalDate']) / 1000.0
             if 'raw' in data.keys():
                 raw = decode_base64url(data.get('raw'))
-                self.__store_message_file(message_id, raw, path)
+                self.__store_message_file(message_id, raw, create_timestamp)
                 data.pop('raw')
-            write_meta = True
+            write_meta = True  # if any failure then write it force
             if not is_new:
                 logging.log(global_properties.log_finest, f'{message_id} load local version of meta data')
-                with self.storage.getd(latest_meta) as mf:
-                    if mf is not None:
-                        d = json.load(mf)
-                        logging.log(global_properties.log_finest, f'{message_id} metadata is loaded from local')
-                        if d == data:
-                            write_meta = False
-                    else:
-                        logging.warning(f'{message_id} local version of meta data is not exists')
+                try:
+                    with self.storage.get(latest_meta_link) as mf:
+                        if mf is not None:
+                            d = json.load(mf)
+                            logging.log(global_properties.log_finest, f'{message_id} metadata is loaded from local')
+                            if d == data:
+                                write_meta = False
+                        else:
+                            logging.warning(f'{message_id} local version of meta data is not exists')
+                except BaseException as e:
+                    logging.error(f'{message_id} metadata load as json failed: {e}')
+                    logging.error(traceback.format_exc())
 
             if write_meta:
-                mutation = StorageInterface.new_mutation()
-                success = self.storage.put(path=path, oid=message_id, mime=StorageInterface.mime_json,
-                                           data=json.dumps(data), mutation=mutation)
-                logging.info(f'{message_id} Meta data is saved')
-                if not success:
+                link = self.storage.new_link(object_id=message_id, extension='json',
+                                             created_timestamp=create_timestamp) \
+                    .set_properties({LinkInterface.property_metadata: True})
+                success = self.storage.put(link, data=json.dumps(data))
+                if success:
+                    logging.info(f'{message_id} Meta data is saved')
+                else:
                     raise Exception('Meta data put failed')
             else:
                 logging.debug(f'{message_id} Meta data is not changed, skip put')
-            if message_id in local_messages:
-                del local_messages[message_id]
+            if message_id in stored_messages:
+                del stored_messages[message_id]
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
@@ -243,58 +244,93 @@ class Gmail:
         finally:
             self.__release_service(service, email)
 
-    def __backup_labels(self):
-        # TODO: save only if changed
+    def __backup_labels(self, link: LinkInterface | None):
         logging.info('Backing up labels...')
         labels = self.__get_labels_from_server()
-        self.storage.put(path=Gmail.path_root, oid='labels', mime=StorageInterface.mime_json,
-                         mutation=StorageInterface.new_mutation(),
-                         data=json.dumps(labels))
+        if link is not None:
+            logging.debug('labels is exists, checking for changes')
+            try:
+                with self.storage.get(link) as f:
+                    if f is None:
+                        logging.error('labels loading failed.')
+                    else:
+                        d = json.load(f)
+                        if d == labels:
+                            logging.info('Labels is not changed, not saving it')
+                            return
+                        else:
+                            logging.debug('labels is changed')
+            except BaseException as e:
+                logging.error(f'labels loading or parsing failed: {e}')
+                logging.error(traceback.format_exc())
+        link = self.storage.new_link(object_id=Gmail.object_id_labels, extension='json',
+                                     created_timestamp=None) \
+            .set_properties({LinkInterface.property_metadata: True})
+        self.storage.put(link, data=json.dumps(labels))
         logging.info('Backing up labels successfully')
 
     def backup(self):
-        logging.info('Starting backup for ' + self.email)
+        logging.info(f'Starting backup for {self.email}')
         self.__error_count = 0
 
-        self.__backup_labels()
-        logging.info("Scanning local messages...")
-        local_messages: dict[str, ObjectList[ObjectDescriptor]] = {}
-        local_messages_all = self.storage.find(Gmail.path_messages)
-        logging.info(f'Local items: {len(local_messages_all)}')
-        for desc in local_messages_all:
-            if desc.object_id in local_messages:
-                continue
-            local_messages[desc.object_id] = local_messages_all.get_latest_mutations(desc.object_id)
-        del local_messages_all
-        logging.info(f'Local messages: {len(local_messages)}')
+        logging.info("Scanning backup storage...")
+        stored_data_all = self.storage.find()
+        logging.info(f'Stored items: {len(stored_data_all)}')
+        labels_link = stored_data_all.latest_mutation(f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata)
+        self.__backup_labels(labels_link)
 
-        messages = self.__get_all_email_ids_from_server()
+        stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.latest_mutation(
+            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()),
+            g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
+        del stored_data_all
+        for message_id in list(stored_messages.keys()):
+            link_metadata = stored_messages[message_id].get(0)
+            if link_metadata is None:
+                logging.error(f'{message_id} metadata is not found in locally')
+                del stored_messages[message_id]
+            elif link_metadata.is_deleted():
+                logging.debug(f'{message_id} metadata is already deleted')
+                del stored_messages[message_id]
+            else:
+                logging.log(global_properties.log_finest, f'{message_id} is usable from backup storage')
+        logging.info(f'Stored messages: {len(stored_messages)}')
+
+        messages_from_server = self.__get_all_email_ids_from_server()
         logging.info('Processing...')
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
-            for message_id in messages:
-                executor.submit(self.__backup_messages, messages[message_id], local_messages)
+            for message_id in messages_from_server:
+                executor.submit(self.__backup_messages, messages_from_server[message_id], stored_messages)
         logging.info('Processed')
+
         if self.__error_count > 0:
+            # if error then never delete!
             logging.error('Backup failed with ' + str(self.__error_count) + ' errors')
             return False
+
         logging.info('Mark as deletes...')
-        for message_id in local_messages:
-            olist = local_messages[message_id]
-            desc = olist.get_latest_mutation(message_id, StorageInterface.mime_json)
-            if desc.deleted:
-                # already deleted, skip it
-                continue
+        for message_id in stored_messages:
+            links = stored_messages[message_id]
             logging.debug(f'{message_id} mark as deleted in local storage...')
-            mutation = self.storage.new_mutation()
-            new_desc = copy.copy(desc)
-            new_desc.deleted = True
-            new_desc.mutation = mutation
-            logging.debug(f'{message_id} {desc} -> {new_desc}')
-            with self.storage.getd(desc) as f:
-                self.storage.putd(new_desc, f)
-            logging.info(f'{message_id} marked as deleted')
+            meta_link = links.get(0)
+            if meta_link is None:
+                continue
+            logging.debug(f'{message_id} - {meta_link}')
+            if self.storage.remove(meta_link):
+                logging.debug(f'{message_id} metadata mark as deleted successfully')
+                message_link = links.get(1)
+                if message_link is None:
+                    logging.info(f'{message_id} marked as deleted')
+                else:
+                    if self.storage.remove(message_link):
+                        logging.debug(f'{message_id} object mark as deleted successfully')
+                        logging.info(f'{message_id} marked as deleted')
+                    else:
+                        logging.error(f'{message_id} object mark as deleted fail')
+            else:
+                logging.error(f'{message_id} mark as deleted failed')
+
         logging.info('Mark as deleted: complete')
-        logging.info('Backup finished for ' + self.email)
+        logging.info(f'Backup finished for {self.email}')
         return True
 
     @staticmethod

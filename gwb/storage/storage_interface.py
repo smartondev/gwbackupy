@@ -1,29 +1,53 @@
 from __future__ import annotations
 
-import datetime
-from operator import itemgetter
-from typing import Callable, IO
+from typing import Callable, IO, Union
 
 Path = str
 DataCall = Callable[[IO[bytes]], None]
-Data = str | bytes | DataCall | IO
+Data = Union[str, bytes, DataCall, IO]
 
 
-class ObjectDescriptor:
+class LinkInterface:
+    property_deleted = 'deleted'
+    property_metadata = 'metadata'
+    property_object = 'object'
+    property_mutation = 'mutation'
 
-    def __init__(self):
-        self.object_id = None
-        self.path = None
-        self.mime = None
-        self.mutation = None
-        self.deleted = False
+    # def __init__(self):
 
-    def __str__(self):
-        return str({'oid': self.object_id, 'path': self.path, 'mime': self.mime, 'mutation': self.mutation,
-                    'deleted': self.deleted})
+    def id(self) -> str:
+        pass
+
+    def get_properties(self) -> dict[str, any]:
+        pass
+
+    def set_properties(self, sets: dict[str, any], replace: bool = False) -> LinkInterface:
+        pass
+
+    def get_property(self, name: str, default: any = None) -> any:
+        pass
+
+    def has_property(self, name: str) -> bool:
+        pass
+
+    def mutation(self) -> str:
+        pass
+
+    def is_deleted(self) -> bool:
+        pass
+
+    def is_metadata(self) -> bool:
+        pass
+
+    def is_object(self) -> bool:
+        pass
 
 
-class ObjectList(list):
+LinkFilter = Callable[[LinkInterface], bool]
+LinkGroupBy = Callable[[LinkInterface], list[Union[str, int]]]
+
+
+class LinkList(list):
     def __init__(self, iterable):
         super().__init__(item for item in iterable)
 
@@ -42,98 +66,66 @@ class ObjectList(list):
         else:
             super().extend(item for item in other)
 
-    def get_object_ids(self):
+    def latest_mutation(self, f: LinkFilter | None, g: LinkGroupBy | None = None) \
+            -> LinkInterface | dict[str, any] | None:
         result = {}
-        for item in self:
-            item: ObjectDescriptor
-            if item.object_id in result:
+        use_group_by = g is not None
+        found = 0
+        if g is None:
+            g = lambda _: ['']
+        for link in self:
+            link: LinkInterface
+            if f is not None and not f(link):
                 continue
-            result[item.object_id] = True
-        return result.keys()
-
-    def has_object_id(self, oid: str) -> bool:
-        for item in self:
-            item: ObjectDescriptor
-            if item.object_id == oid:
-                return True
-        return False
-
-    def has_mime(self, mime: str) -> bool:
-        for item in self:
-            item: ObjectDescriptor
-            if item.mime == mime:
-                return True
-        return False
-
-    def remove_all(self, oid: str):
-        removes = []
-        for item in self:
-            item: ObjectDescriptor
-            if item.object_id != oid:
+            found += 1
+            gks = g(link)
+            local_result = result
+            # print([link.id(), link.is_metadata(), link.is_object(), gks])
+            for i in range(len(gks)):
+                if i == len(gks) - 1:
+                    break
+                gk = gks[i]
+                if gk not in local_result:
+                    # print(f'{gk} key create')
+                    local_result[gk] = {}
+                local_result = local_result[gk]
+            gk = gks[-1]
+            if gk not in local_result:
+                # print(f'{gk} key not exists')
+                local_result[gk] = link
                 continue
-            removes.append(item)
-        for item in removes:
-            self.remove(item)
-
-    def get_latest_mutations(self, oid: str) -> ObjectList[ObjectDescriptor]:
-        result = {}
-        for item in self:
-            item: ObjectDescriptor
-            if item.object_id != oid:
-                continue
-            if item.mime not in result:
-                result[item.mime] = item
-                continue
-            result_mutation = result[item.mime].mutation
+            # print(local_result)
+            result_mutation = local_result[gk].mutation()
             if result_mutation is None:
                 result_mutation = ''
-            item_mutation = item.mutation
+            item_mutation = link.mutation()
             if item_mutation is None:
                 item_mutation = ''
 
             if result_mutation < item_mutation:
-                result[item.mime] = item
-        return ObjectList(result.values())
-
-    def get_latest_mutation(self, oid: str, mime: str) -> ObjectDescriptor | None:
-        for item in self.get_latest_mutations(oid):
-            item: ObjectDescriptor
-            if item.mime == mime:
-                return item
-
+                local_result[gk] = link
+        if use_group_by:
+            return result
+        if found > 0:
+            return result['']
         return None
 
 
-ObjectFilter = Callable[[ObjectDescriptor], bool]
-
-
 class StorageInterface:
-    mime_json = 'application/json'
-    mime_eml = 'application/x-eml'
-    mime_eml_gz = 'application/x-eml-gz'
-    mime_temp = 'application/x-temp'
-
     def initialize(self, path: Path):
         pass
 
-    def getd(self, desc: ObjectDescriptor) -> IO[bytes] | None:
-        return self.get(path=desc.path, oid=desc.object_id, mime=desc.mime, mutation=desc.mutation,
-                        deleted=desc.deleted)
-
-    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO[bytes] | None:
+    def new_link(self, object_id: str, extension: str, created_timestamp: int | float | None = None) -> LinkInterface:
         pass
 
-    def put(self, path: Path, oid: str, mime: str, data: Data, mutation: str = None,
-            deleted: bool = False) -> bool:
+    def get(self, link: LinkInterface) -> IO[bytes] | None:
         pass
 
-    def putd(self, desc: ObjectDescriptor, data: Data) -> bool:
-        return self.put(path=desc.path, oid=desc.object_id, mime=desc.mime, mutation=desc.mutation,
-                        deleted=desc.deleted, data=data)
-
-    def find(self, path: Path, filter_fun: ObjectFilter | None = None) -> ObjectList[ObjectDescriptor]:
+    def put(self, link: LinkInterface, data: Data) -> bool:
         pass
 
-    @staticmethod
-    def new_mutation() -> str:
-        return datetime.datetime.utcnow().strftime("%d%m%Y%H%M%S")
+    def remove(self, link: LinkInterface, as_new_mutation: bool = True) -> bool:
+        pass
+
+    def find(self, f: LinkFilter | None = None) -> LinkList[LinkInterface]:
+        pass

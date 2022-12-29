@@ -1,11 +1,12 @@
-
 # CHANGELOG
 
 ## DEV
 
-- Enh   : temporary file based creation for minimize invalid files states
-- Enh   : Separation of service parameters for easy reusability in another python library or package
+**Local file Storage BC break**
 
+- Enh: temporary file based creation for minimize invalid files states
+- Enh: Separation of service parameters for easy reusability in another python library or package
+- Enh #13: Self managed versioned file storage with extendable custom storage interface (eg. for database)
 
 ## 0.4.0
 

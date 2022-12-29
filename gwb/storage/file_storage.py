@@ -1,34 +1,156 @@
 from __future__ import annotations
 
+import copy
 import io
 import logging
 import os
 import re
 import shutil
 import traceback
+from builtins import float
+from datetime import datetime, timezone
 from typing import IO
 
-from gwb.storage.storage_interface import StorageInterface, Path, Data, ObjectFilter, ObjectDescriptor, ObjectList, \
-    DataCall
+from gwb.storage.storage_interface import StorageInterface, Path, Data, LinkFilter, LinkInterface, LinkList
+
+
+# Directory structure v2
+# /[<path>]
+#    - <id>.<propname>=<propvalue>.<propname>=<propvalue>.<ext>
+#    - 12345678.m=12345678.metadata=.deleted=.json
+#    - 12345678.m=12345678.object=message.eml.gz
+#
+
+class FileLink(LinkInterface):
+    filename_parser = re.compile(
+        r'^(?P<id>[^.]+?)(?P<properties>(?:\.[a-z0-9]+=[^.]*)*)\.(?P<extension>.+)$'
+    )
+
+    def __init__(self):
+        self.__id: str | None = None
+        self.__path: str | None = None
+        self.__properties: dict[str, any] = {}
+        self.__extension: str | None = None
+
+    def fill(self, values: dict[str, any], replace: bool = False) -> FileLink:
+        if 'object_id' in values:
+            self.__id = values['object_id']
+        if replace:
+            self.__properties = {}
+        if 'deleted' in values:
+            self.__properties[LinkInterface.property_deleted] = True
+        if 'object' in values:
+            self.__properties[LinkInterface.property_object] = True
+        if 'metadata' in values:
+            self.__properties[LinkInterface.property_metadata] = True
+        if 'extension' in values:
+            self.__extension = values['extension']
+        if 'mutation' in values:
+            self.__properties[LinkInterface.property_mutation] = values['mutation']
+        if 'path' in values:
+            self.__path = values['path']
+        return self
+
+    def get_file_path(self) -> str:
+        path = self.__path + '/' + self.__id
+        keys = list(self.__properties.keys())
+        keys.sort()
+        for k in keys:
+            if self.__properties[k] is None:
+                continue
+            path += f'.{k}='
+            if self.__properties[k] is not True:
+                path += str(self.__properties[k])
+        if self.__extension is not None:
+            path += f'.{self.__extension}'
+
+        return path
+
+    @staticmethod
+    def parse_file_name(filename: str) -> dict[str, any] | None:
+        m = FileLink.filename_parser.search(filename)
+        if m is None:
+            return None
+        result: dict[str, any] = {
+            'object_id': m.group('id'),
+            'extension': m.group('extension')
+        }
+        properties = m.group('properties')
+        if properties is None or properties == '':
+            return result
+        for prop in properties.strip('.').split('.'):
+            p, v = prop.split('=', 1)
+            if v == '':
+                v = True
+            result[p] = v
+        return result
+
+    def mutation(self) -> str:
+        return self.get_property(LinkInterface.property_mutation)
+
+    def id(self) -> str:
+        return self.__id
+
+    def get_properties(self) -> dict[str, any]:
+        return self.__properties
+
+    def has_property(self, name: str) -> bool:
+        if self.__properties.get(name, None) is not None:
+            return True
+        return False
+
+    def set_properties(self, sets: dict[str, any], replace: bool = False) -> FileLink:
+        if replace:
+            self.__properties = sets
+            return self
+        for k, v in sets.items():
+            self.__properties[k] = v
+        return self
+
+    def is_deleted(self) -> bool:
+        return self.has_property(LinkInterface.property_deleted) is True
+
+    def is_metadata(self) -> bool:
+        return self.has_property(LinkInterface.property_metadata) is True
+
+    def is_object(self) -> bool:
+        return self.has_property(LinkInterface.property_object) is True
+
+    def __repr__(self) -> str:
+        return f'{self.__class__}#id:{self.id()},props:{self.__properties},path:{self.__path}'
 
 
 class FileStorage(StorageInterface):
-    filename_parser = re.compile(
-        r'^(?P<id>[^.]+?)\.(?:(?P<mutation>\d+)\.(?:(?P<deleted>deleted)\.)?)?(?P<extension>.+)$'
-    )
 
     def __init__(self, root: str):
         self.root = root
 
-    def get(self, path: Path, oid: str, mime: str, mutation: str = None, deleted: bool = False) -> IO[bytes] | None:
-        file_path = self.__get_path(path=path, oid=oid, mime=mime, mutation=mutation, deleted=deleted)
+    def new_link(self, object_id: str, extension: str, created_timestamp: int | float | None = None) -> FileLink:
+        link = FileLink()
+        path = self.root
+        if created_timestamp is not None:
+            sub_paths = datetime.fromtimestamp(created_timestamp, tz=timezone.utc) \
+                .strftime('%Y-%m-%d').split('-', 1)
+            path += f'/{sub_paths[0]}/{sub_paths[1]}'
+        link.fill({
+            'path': path,
+            'object_id': object_id,
+            'extension': extension,
+            'mutation': self.__gen_mutation(),
+        })
+        return link
+
+    def __gen_mutation(self):
+        return datetime.utcnow().strftime("%Y%m%d%H%M%S")
+
+    def get(self, link: FileLink) -> IO[bytes] | None:
+        file_path = link.get_file_path()
         if not os.path.exists(file_path):
             return None
         return open(file_path, 'rb')
 
-    def put(self, path: Path, oid: str, mime: str, data: Data, mutation: str = None,
-            deleted: bool = False) -> bool:
-        file_path = self.__get_path(path=path, oid=oid, mime=mime, mutation=mutation, deleted=deleted)
+    def put(self, link: FileLink, data: Data) -> bool:
+        file_path = link.get_file_path()
         logging.debug(f'Put object {file_path}')
         result = self.__write(file_path=file_path, data=data)
         if result:
@@ -40,40 +162,64 @@ class FileStorage(StorageInterface):
     def initialize(self, path: Path):
         pass
 
-    def find(self, path: Path, filter_fun: ObjectFilter | None = None) -> ObjectList[ObjectDescriptor]:
-        abspath = self.__get_path(path=path)
-        skip_path = len(abspath) - len(path)
-        result: ObjectList[ObjectDescriptor] = ObjectList([])
+    def remove(self, link: FileLink, as_new_mutation: bool = True) -> bool:
+        if not as_new_mutation:
+            try:
+                if os.path.exists(link.get_file_path()):
+                    os.remove(link.get_file_path())
+                return True
+            except BaseException as e:
+                logging.error(f'Delete fail {link.get_file_path()} with error: {e}')
+                logging.error(traceback.format_exc())
+                return False
+
+        dst = copy.deepcopy(link).fill({
+            'deleted': True,
+            'mutation': self.__gen_mutation(),
+        })
+        try:
+            with self.get(link) as f:
+                if not f:
+                    logging.error(f'{link.get_file_path()} not found or not readable')
+                    return False
+                self.put(dst, f)
+        except BaseException as e:
+            logging.error(f'Copy as new mutation is failed {link.get_file_path()} -> {dst.get_file_path()}: {e}')
+            logging.error(traceback.format_exc())
+            return False
+        return True
+
+    def find(self, f: LinkFilter | None = None) -> LinkList[LinkInterface]:
+        abspath = self.root
+        skip_path = len(abspath)
+        result: LinkList[LinkInterface] = LinkList([])
         for _path, _, filenames in os.walk(abspath):
             for file in filenames:
                 file_path = os.path.join(_path, file)
                 relpath = _path[skip_path:]
-                d = ObjectDescriptor()
+                link = FileLink()
                 if len(relpath) > 0:
-                    d.path = relpath
-                m = FileStorage.filename_parser.search(file)
+                    link.path = relpath
+                m = FileLink.parse_file_name(file)
                 if m is None:
                     continue
-                mime = FileStorage.__extension2mime(m.group('extension'))
-                if mime is None:
+                m['path'] = _path
+                link.fill(m)
+
+                if 'extension' not in m:
+                    logging.debug(f'Unknown file without extension: {file_path}')
                     continue
-                if mime == StorageInterface.mime_temp:
+                if m['extension'] == 'tmp':
+                    logging.debug(f'Temporary file {file_path}, remove it')
                     try:
                         os.remove(file_path)
                     except BaseException as e:
-                        logging.error(f'Temporary file delete fail {file_path}: {e}')
+                        logging.error(f'Temporary file remove fail {file_path}: {e}')
                         logging.error(traceback.format_exc())
                     continue
 
-                d.mime = mime
-                mutation = m.group('mutation')
-                d.object_id = m.group('id')
-                d.deleted = m.group('deleted') is not None
-                if mutation is not None and len(mutation) > 0:
-                    d.mutation = mutation
-
-                if filter_fun is None or filter_fun(d):
-                    result.append(d)
+                if f is None or f(link):
+                    result.append(link)
         return result
 
     def __get_path(self, path: Path, oid: str | None = None, mime: str | None = None, mutation: str | None = None,
