@@ -94,8 +94,13 @@ class FileLink(LinkInterface):
     def get_properties(self) -> dict[str, any]:
         return self.__properties
 
+    def get_property(self, name: str, default: any = None) -> any:
+        if name in self.__properties:
+            return self.__properties[name]
+        return default
+
     def has_property(self, name: str) -> bool:
-        if self.__properties.get(name, None) is not None:
+        if self.get_properties().get(name, None) is not None:
             return True
         return False
 

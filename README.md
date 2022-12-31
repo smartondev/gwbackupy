@@ -21,6 +21,8 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 
 ## Currently implemented functionality
 
+- Run from CLI or run directly from python code
+- Dry mode (not write to local storage and not modify on server)
 - Google Workspace
     - authentication with p12/json service account file.
 
@@ -42,13 +44,7 @@ Additional functionality under development.
     - list all workspace accounts email addresses
 - Gmail
     - Support for standard gmail account authentication
-    - Retention of deleted mails
-
-      *Purpose: to be easy to use even without additional snapshot storage.*
     - Filtered restore
-    - Live restore without duplicate mails.
-
-      *Currently not check email exists or not, and restoring forcely.*
 
 ## Install
 
@@ -62,9 +58,9 @@ Additional functionality under development.
 
 - [Parameters](docs/cli-parameters.md)
 
-### Gmail
+### Example usage Gmail
 
-Backup
+Backup run in CLI:
 
 ```bash
 gwbackupy \
@@ -74,7 +70,7 @@ gwbackupy \
   --email <mailbox email address>
 ```
 
-Restore
+Restore run in CLI:
 
 ```bash
 gwbackupy \
@@ -85,6 +81,23 @@ gwbackupy \
   --add-label "more-restore-label" \
   --email <source backup mailbox email address> \
   --to-email <destination mailbox email address> # If you want to a different destination account
+```
+
+Backup run from python code:
+
+```python
+from gwb.gmail import Gmail
+from gwb.storage.file_storage import FileStorage
+
+gmail = Gmail(email='email@example.com',
+              service_account_file_path='xx.json',
+              batch_size=3,
+              storage=FileStorage('data/email@example.co')
+              )
+if gmail.backup():
+    print('Yeah!')
+else:
+    print(':(')
 ```
 
 ## Contributing

@@ -8,6 +8,8 @@ import os
 import threading
 import time
 import traceback
+import collections
+from datetime import datetime
 
 import tzlocal
 from googleapiclient.discovery import build
@@ -16,7 +18,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from gwb import global_properties
 from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim
-from gwb.storage.storage_interface import StorageInterface, LinkList, LinkInterface
+from gwb.storage.file_storage import FileLink
+from gwb.storage.storage_interface import StorageInterface, LinkList, LinkInterface, Data
 
 
 class Gmail:
@@ -25,7 +28,9 @@ class Gmail:
     """Gmail's special object ID for storing labels"""
 
     def __init__(self, email: str, service_account_email: str, service_account_file_path: str,
-                 storage: StorageInterface, batch_size: int = 10, labels=None):
+                 storage: StorageInterface, batch_size: int = 10, labels: list[str] | None = None,
+                 dry_mode: bool = False):
+        self.dry_mode = dry_mode
         self.email = email
         self.storage = storage
         self.service_account_email = service_account_email
@@ -126,18 +131,20 @@ class Gmail:
         link = self.storage.new_link(object_id=message_id, extension='eml.gz',
                                      created_timestamp=create_timestamp) \
             .set_properties({LinkInterface.property_object: True})
-        result = self.storage.put(link, data=gzip.compress(raw_message, compresslevel=9))
+        result = self.__storage_put(link, data=gzip.compress(raw_message, compresslevel=9))
         if result:
             logging.debug(f'{message_id} message is saves successfully')
         else:
             raise Exception('Mail message save failed')
 
-    def __backup_messages(self, message, stored_messages: dict[int, LinkInterface]):
+    def __backup_messages(self, message, stored_messages: dict[str, dict[int, LinkInterface]]):
         message_id = message.get('id', 'UNKNOWN')  # for logging
         try:
-            # if message_id != '18548c887279e2e5':
+            # if message_id != '1853ee437c8ff302':
             #     raise Exception('SKIP')
-            message_id = message['id']  # throw error if not exists
+            if 'id' not in message:
+                raise Exception('id key not exists in server message data')
+            message_id = message['id']
             latest_meta_link = None
             if message_id in stored_messages:
                 latest_meta_link = stored_messages[message_id][0]
@@ -165,6 +172,7 @@ class Gmail:
                 raw = decode_base64url(data.get('raw'))
                 self.__store_message_file(message_id, raw, create_timestamp)
                 data.pop('raw')
+
             write_meta = True  # if any failure then write it force
             if not is_new:
                 logging.log(global_properties.log_finest, f'{message_id} load local version of meta data')
@@ -185,7 +193,7 @@ class Gmail:
                 link = self.storage.new_link(object_id=message_id, extension='json',
                                              created_timestamp=create_timestamp) \
                     .set_properties({LinkInterface.property_metadata: True})
-                success = self.storage.put(link, data=json.dumps(data))
+                success = self.__storage_put(link, data=json.dumps(data))
                 if success:
                     logging.info(f'{message_id} Meta data is saved')
                 else:
@@ -197,8 +205,8 @@ class Gmail:
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
-            # if str(e) == 'SKIP':
-            #     return
+            if str(e) == 'SKIP':
+                return
             logging.error(f'{message_id} {e}')
             logging.error(traceback.format_exc())
 
@@ -244,7 +252,7 @@ class Gmail:
         finally:
             self.__release_service(service, email)
 
-    def __backup_labels(self, link: LinkInterface | None):
+    def __backup_labels(self, link: LinkInterface | None) -> bool:
         logging.info('Backing up labels...')
         labels = self.__get_labels_from_server()
         if link is not None:
@@ -257,7 +265,7 @@ class Gmail:
                         d = json.load(f)
                         if d == labels:
                             logging.info('Labels is not changed, not saving it')
-                            return
+                            return True
                         else:
                             logging.debug('labels is changed')
             except BaseException as e:
@@ -266,20 +274,38 @@ class Gmail:
         link = self.storage.new_link(object_id=Gmail.object_id_labels, extension='json',
                                      created_timestamp=None) \
             .set_properties({LinkInterface.property_metadata: True})
-        self.storage.put(link, data=json.dumps(labels))
+        result = self.__storage_put(link, data=json.dumps(labels))
+        if not result:
+            logging.error('Error while storing labels')
+            return False
         logging.info('Backing up labels successfully')
+        return True
 
-    def backup(self):
+    def __storage_remove(self, link: LinkInterface) -> bool:
+        if self.dry_mode:
+            logging.info(f'DRY MODE storage remove: {link}')
+            return True
+        return self.storage.remove(link)
+
+    def __storage_put(self, link: LinkInterface, data: Data) -> bool:
+        if self.dry_mode:
+            logging.info(f'DRY MODE storage put: {link}')
+            return True
+        return self.storage.put(link, data)
+
+    def backup(self) -> bool:
         logging.info(f'Starting backup for {self.email}')
         self.__error_count = 0
 
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f'Stored items: {len(stored_data_all)}')
-        labels_link = stored_data_all.latest_mutation(f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata)
-        self.__backup_labels(labels_link)
+        labels_link = stored_data_all.find(f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata)
+        if not self.__backup_labels(labels_link):
+            logging.error('Backup finished with storing labels failed')
+            return False
 
-        stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.latest_mutation(
+        stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()),
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
         del stored_data_all
@@ -315,13 +341,13 @@ class Gmail:
             if meta_link is None:
                 continue
             logging.debug(f'{message_id} - {meta_link}')
-            if self.storage.remove(meta_link):
+            if self.__storage_remove(meta_link):
                 logging.debug(f'{message_id} metadata mark as deleted successfully')
                 message_link = links.get(1)
                 if message_link is None:
                     logging.info(f'{message_id} marked as deleted')
                 else:
-                    if self.storage.remove(message_link):
+                    if self.__storage_remove(message_link):
                         logging.debug(f'{message_id} object mark as deleted successfully')
                         logging.info(f'{message_id} marked as deleted')
                     else:
@@ -332,12 +358,6 @@ class Gmail:
         logging.info('Mark as deleted: complete')
         logging.info(f'Backup finished for {self.email}')
         return True
-
-    @staticmethod
-    def __remove_file(filepath):
-        if filepath is not None and os.path.exists(filepath):
-            logging.info('Deleting locally stored file (' + filepath + ')')
-            os.remove(filepath)
 
     @staticmethod
     def __is_user_label_id(label_id):
@@ -372,12 +392,16 @@ class Gmail:
         json_data = json.load(open(file))
         return self.__labels_index_by_key(json_data, 'id')
 
-    def __restore_label(self, label_name, email):
+    def __restore_label(self, label_name, email) -> dict | None:
+        logging.info(f'Restoring label if not exists: {label_name}')
+        if self.dry_mode:
+            logging.info('DRY MODE: create label if not exists')
+            return {'id': f'Label_DRY{datetime.utcnow().timestamp():1.3f}'}
         service = None
         try:
-            logging.info('Restoring label ' + label_name)
             service = self.__get_service(email)
-            return service.users().labels().create(userId='me', body={'name': label_name}).execute()
+            result = service.users().labels().create(userId='me', body={'name': label_name}).execute()
+            return result
         except HttpError as e:
             if e.status_code == 409:
                 # already exists
@@ -425,8 +449,12 @@ class Gmail:
             service = self.__get_service(to_email)
             try:
                 logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
-                result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
-                                                           body=message_data).execute()
+                if self.dry_mode:
+                    logging.info(f'{restore_message_id} DRY MODE insert message')
+                    result = {'id': f'DRYMODE{datetime.utcnow().timestamp():1.3f}'}
+                else:
+                    result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
+                                                               body=message_data).execute()
                 logging.debug(f"Message uploaded {result}")
                 logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
                 return result
@@ -462,6 +490,24 @@ class Gmail:
         if to_email is None:
             to_email = self.email
         self.__error_count = 0
+        logging.info(f'Used timezone: {timezone}')
+        # TODO parse filter dates
+        # TODO if filter date is None then use max or min
+
+        logging.info("Scanning backup storage...")
+        stored_data_all = self.storage.find()
+        logging.info(f'Stored items: {len(stored_data_all)}')
+        logging.info(f'Loading labels')
+        # TODO add date filtering for max mutation
+        labels_links: dict[str, LinkInterface] = stored_data_all.find(
+            f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata,
+            g=lambda l: [l.mutation()]
+        )
+        labels_links = collections.OrderedDict(sorted(labels_links.items()))
+        print(labels_links)
+        exit(1)
+        del labels_links
+        logging.info('Labels loaded successfully')
 
         # TODO restore only used labels ??
         logging.info("Restoring labels...")

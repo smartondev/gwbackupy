@@ -44,3 +44,7 @@ def decode_base64url(data):
 
 def encode_base64url(data):
     return base64.urlsafe_b64encode(data).decode('utf-8').replace('=', '')
+
+
+def parse_date(date: str):
+    pass

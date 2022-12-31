@@ -25,6 +25,8 @@ def parse_arguments():
     }
 
     parser = argparse.ArgumentParser(description='Google Workspace Backup Tool ' + global_properties.version)
+    parser.set_defaults(feature=True)
+    parser.add_argument('--dry-mode', help='Run in dry mode', action='store_true')
     parser.add_argument('--timezone', type=lambda s: pytz.timezone(s),
                         help='time zone', default=get_localzone())
     parser.add_argument('--log-level', type=str.lower,
@@ -71,24 +73,20 @@ def cli_startup():
         args = parse_arguments()
         storage = FileStorage(args.workdir + '/' + args.email)
         if args.service == 'gmail':
+            gmail = Gmail(email=args.email,
+                          service_account_email=args.service_account_email,
+                          service_account_file_path=args.service_account_key_filepath,
+                          batch_size=args.batch_size,
+                          storage=storage,
+                          dry_mode=args.dry_mode)
             if args.command == 'backup':
-                gmail = Gmail(email=args.email,
-                              service_account_email=args.service_account_email,
-                              service_account_file_path=args.service_account_key_filepath,
-                              batch_size=args.batch_size,
-                              storage=storage)
                 if gmail.backup():
                     exit(0)
                 else:
                     exit(1)
             if args.command == 'restore':
                 if args.add_labels is None:
-                    args.add_labels = ['gwb']
-                gmail = Gmail(email=args.email,
-                              service_account_email=args.service_account_email,
-                              service_account_file_path=args.service_account_key_filepath,
-                              batch_size=args.batch_size,
-                              storage=storage)
+                    args.add_labels = ['gwbackupy']
                 if gmail.restore(to_email=args.to_email,
                                  timezone=args.timezone,
                                  filter_date_from=args.filter_date_from,

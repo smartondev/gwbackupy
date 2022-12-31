@@ -66,8 +66,9 @@ class LinkList(list):
         else:
             super().extend(item for item in other)
 
-    def latest_mutation(self, f: LinkFilter | None, g: LinkGroupBy | None = None) \
+    def find(self, f: LinkFilter | None, g: LinkGroupBy | None = None) \
             -> LinkInterface | dict[str, any] | None:
+        """Find in links. If there are multiple results for a key, the most recent mutation is selected."""
         result = {}
         use_group_by = g is not None
         found = 0
@@ -80,21 +81,17 @@ class LinkList(list):
             found += 1
             gks = g(link)
             local_result = result
-            # print([link.id(), link.is_metadata(), link.is_object(), gks])
             for i in range(len(gks)):
                 if i == len(gks) - 1:
                     break
                 gk = gks[i]
                 if gk not in local_result:
-                    # print(f'{gk} key create')
                     local_result[gk] = {}
                 local_result = local_result[gk]
             gk = gks[-1]
             if gk not in local_result:
-                # print(f'{gk} key not exists')
                 local_result[gk] = link
                 continue
-            # print(local_result)
             result_mutation = local_result[gk].mutation()
             if result_mutation is None:
                 result_mutation = ''
