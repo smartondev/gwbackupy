@@ -26,7 +26,7 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser(description='Google Workspace Backup Tool ' + global_properties.version)
     parser.set_defaults(feature=True)
-    parser.add_argument('--dry-mode', help='Run in dry mode', action='store_true')
+    parser.add_argument('--dry', default=False, help='Run in dry mode', action='store_true')
     parser.add_argument('--timezone', type=lambda s: pytz.timezone(s),
                         help='time zone', default=get_localzone())
     parser.add_argument('--log-level', type=str.lower,
@@ -51,8 +51,8 @@ def parse_arguments():
                                       help='Destination email account, if not specified, then --email is used')
     gmail_restore_parser.add_argument('--add-label', type=str, action='append',
                                       help='Add label to restored emails', default=None, dest='add_labels')
-    gmail_restore_parser.add_argument('--restore-deleted', type=bool, help='Restore deleted emails',
-                                      default=False)
+    gmail_restore_parser.add_argument('--restore-deleted', help='Restore deleted emails',
+                                      default=False, action='store_true')
     gmail_restore_parser.add_argument('--filter-date-from', type=str, help='Filter date from', default=None)
     gmail_restore_parser.add_argument('--filter-date-to', type=str, help='Filter date to', default=None)
 
@@ -78,7 +78,7 @@ def cli_startup():
                           service_account_file_path=args.service_account_key_filepath,
                           batch_size=args.batch_size,
                           storage=storage,
-                          dry_mode=args.dry_mode)
+                          dry_mode=args.dry)
             if args.command == 'backup':
                 if gmail.backup():
                     exit(0)
@@ -92,7 +92,7 @@ def cli_startup():
                                  filter_date_from=args.filter_date_from,
                                  filter_date_to=args.filter_date_to,
                                  restore_deleted=args.restore_deleted,
-                                 add_labels=args.add_labels
+                                 add_labels=args.add_labels,
                                  ):
                     exit(0)
                 else:

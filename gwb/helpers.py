@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 import base64
 import datetime
+import json
+import logging
+import traceback
+from typing import IO
 
 
 def get_path(account, root, file=None, extension=None, subdir=None, group=None, mutation=None, deleted=False):
@@ -48,3 +54,12 @@ def encode_base64url(data):
 
 def parse_date(date: str):
     pass
+
+
+def json_load(io: IO[bytes]) -> list[any] | dict[str, any] | None:
+    try:
+        return json.load(io)
+    except BaseException as e:
+        logging.error(f'JSON load error: {e}')
+        logging.error(traceback.format_exc())
+    return None

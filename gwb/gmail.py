@@ -17,8 +17,7 @@ from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
 
 from gwb import global_properties
-from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim
-from gwb.storage.file_storage import FileLink
+from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim, json_load
 from gwb.storage.storage_interface import StorageInterface, LinkList, LinkInterface, Data
 
 
@@ -210,7 +209,7 @@ class Gmail:
             logging.error(f'{message_id} {e}')
             logging.error(traceback.format_exc())
 
-    def __get_all_email_ids_from_server(self, email=None):
+    def __get_all_messages_from_server(self, email=None):
         if email is None:
             email = self.email
         service = self.__get_service(email)
@@ -242,15 +241,18 @@ class Gmail:
         finally:
             self.__release_service(service, email)
 
-    def __get_labels_from_server(self, email=None):
+    def __get_labels_from_server(self, email=None) -> list[dict[str, any]]:
         if email is None:
             email = self.email
-        service = self.__get_service(email)
+        logging.info(f'Getting labels from server ({email})')
+        service = None
         try:
-            labels = service.users().labels().list(userId='me').execute()
-            return labels.get('labels', [])
+            service = self.__get_service(email)
+            response = service.users().labels().list(userId='me').execute()
+            return response.get('labels', [])
         finally:
-            self.__release_service(service, email)
+            if service is not None:
+                self.__release_service(service, email)
 
     def __backup_labels(self, link: LinkInterface | None) -> bool:
         logging.info('Backing up labels...')
@@ -321,7 +323,7 @@ class Gmail:
                 logging.log(global_properties.log_finest, f'{message_id} is usable from backup storage')
         logging.info(f'Stored messages: {len(stored_messages)}')
 
-        messages_from_server = self.__get_all_email_ids_from_server()
+        messages_from_server = self.__get_all_messages_from_server()
         logging.info('Processing...')
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in messages_from_server:
@@ -359,44 +361,15 @@ class Gmail:
         logging.info(f'Backup finished for {self.email}')
         return True
 
-    @staticmethod
-    def __is_user_label_id(label_id):
-        return label_id.startswith('Label_')
-
-    def __get_user_labels_only(self, labels):
-        output = {}
-        for label_id in labels:
-            if self.__is_user_label_id(label_id):
-                output[label_id] = labels[label_id]
-        return output
-
-    def __get_user_labels_from_local(self):
-        labels = self.__load_labels_from_local()
-        return self.__get_user_labels_only(labels)
-
-    @staticmethod
-    def __labels_index_by_key(labels, key='id'):
-        output = {}
-        for label in labels:
-            if isinstance(label, dict):
-                label_data = label
-            else:
-                label_data = labels[label]
-            output[label_data[key]] = label_data
-        return output
-
-    def __load_labels_from_local(self):
-        file = get_path(self.email, self.work_directory, 'labels.json', group=['gmail'])
-        if not os.path.exists(file):
-            return {}
-        json_data = json.load(open(file))
-        return self.__labels_index_by_key(json_data, 'id')
-
-    def __restore_label(self, label_name, email) -> dict | None:
+    def __create_label_server(self, label_name, email) -> dict | None:
         logging.info(f'Restoring label if not exists: {label_name}')
         if self.dry_mode:
             logging.info('DRY MODE: create label if not exists')
-            return {'id': f'Label_DRY{datetime.utcnow().timestamp():1.3f}'}
+            return {
+                'id': f'Label_DRY{datetime.utcnow().timestamp():1.3f}',
+                'type': 'user',
+                'name': label_name,
+            }
         service = None
         try:
             service = self.__get_service(email)
@@ -413,83 +386,159 @@ class Gmail:
             if service is not None:
                 self.__release_service(service, email)
 
-    def __restore_message(self, storage_descriptor, to_email, labels_from_server, labels_from_server_to_email
-                          , add_label_ids, try_count=5, sleep=10):
-        logging.debug('Restoring message ' + storage_descriptor.object)
-        meta = json.load(open(storage_descriptor.get_latest_mutation_metadata_file_path()))
-        restore_message_id = meta.get('id')
-        logging.debug(f"{restore_message_id} {meta}")
-        label_ids = add_label_ids.copy()
-        for label_id in meta.get('labelIds', []):
-            if self.__is_user_label_id(label_id):
-                label = self.__get_label_from_index_label_id(label_id, labels_from_server,
-                                                             labels_from_server_to_email)
-                label_ids.append(label['id'])
-            elif label_id == 'CHAT':
-                logging.info(f'{meta.id} Message with CHAT label is not supported')
-                return None
-            else:
-                label_ids.append(label_id)
-        if storage_descriptor.object is None:
-            logging.error(f"{restore_message_id} message file not found")
-            self.__error_count += 1
-            return None
-        with gzip.open(storage_descriptor.object, "rb") as binary_file:
-            # TODO check hash!
-            message_content = binary_file.read()
-        # print(file_content)
-        message_data = {
-            'labelIds': label_ids,
-            'raw': encode_base64url(message_content),
-        }
-        # print(meta['labelIds'])
-        # print(message_data)
-        subject = str_trim(meta.get('snippet', ''), 64)
-        for i in range(try_count):
-            service = self.__get_service(to_email)
-            try:
-                logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
-                if self.dry_mode:
-                    logging.info(f'{restore_message_id} DRY MODE insert message')
-                    result = {'id': f'DRYMODE{datetime.utcnow().timestamp():1.3f}'}
-                else:
-                    result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
-                                                               body=message_data).execute()
-                logging.debug(f"Message uploaded {result}")
-                logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
-                return result
-            except HttpError as e:
-                if i == try_count - 1:
-                    # last trys
-                    raise e
-                logging.error(f"{restore_message_id} Exception: {e}")
-                logging.info(f"{restore_message_id} Wait {sleep} seconds and retry..")
-                time.sleep(sleep)
-                continue
-            except Exception as e:
-                with self.__lock:
-                    self.__error_count += 1
-                logging.error(f"{restore_message_id} Exception: {e}")
-            finally:
-                if service is not None:
-                    self.__release_service(service, to_email)
+    def __get_restore_label_ids(self, to_email: str, labels_from_storage: dict[str, dict[str, any]],
+                                labels_form_server: dict[str, dict[str, any]], add_labels: [str],
+                                label_ids_from_message: [str]) -> [str]:
+        if self.email != to_email:
+            raise NotImplementedError('Not implemented for different emails')
+        with self.__lock:
+            result = []
+            for message_label_id in label_ids_from_message:
+                if message_label_id == 'CHAT':
+                    # CHAT tag cannot be restoring
+                    continue
+                if message_label_id in labels_form_server:
+                    server_data = labels_form_server[message_label_id]
+                    if server_data['type'] == 'system' or server_data['type'] == 'user':
+                        # user and system tag allow directly if exists on server
+                        result.append(server_data['id'])
+                        continue
+                    raise NotImplementedError(f'Not implemented tag type: {server_data["type"]}')
+                # not exists on server
+                if message_label_id not in labels_from_storage:
+                    logging.warning(
+                        f'Label with {message_label_id} ID is cannot be restored because no data can be found.')
+                    continue
+                label_data = labels_from_storage[message_label_id]
+                created_label_data = self.__create_label_server(label_data['name'], to_email)
+                if created_label_data is None:
+                    raise Exception(f'Label is created already? A ({label_data})')
+                # label data stored on original label ID!
+                labels_form_server[message_label_id] = created_label_data
+                result.append(created_label_data['id'])
+            for add_label in add_labels:
+                found = False
+                for key in labels_form_server:
+                    server_data = labels_form_server[key]
+                    if server_data['name'] == add_label:
+                        result.append(server_data['id'])
+                        found = True
+                        break
+                if found:
+                    continue
+                # create label...
+                created_label_data = self.__create_label_server(add_label, to_email)
+                if created_label_data is None:
+                    raise Exception(f'Label is created already? B ({label_data})')
+                # label data stored on original label ID!
+                labels_form_server[created_label_data['id']] = created_label_data
+                result.append(created_label_data['id'])
 
-    def __get_label_from_index_label_id(self, label_id, labels_from, labels_to):
-        labels_from = self.__labels_index_by_key(labels_from, 'id')
-        labels_to = self.__labels_index_by_key(labels_to, 'name')
-        if label_id not in labels_from.keys():
-            raise Exception('Label ' + label_id + ' not found in labels_from')
-        if labels_from[label_id]['name'] not in labels_to.keys():
-            raise Exception('Label ' + labels_from[label_id]['name'] + ' not found in labels_to')
-        return labels_to[labels_from[label_id]['name']]
+            return result
+
+    def __restore_message(self, restore_message_id: str, link: dict[int, LinkInterface], to_email: str,
+                          labels_from_storage: dict[str, dict[str, any]],
+                          labels_form_server: dict[str, dict[str, any]],
+                          add_labels: [str], try_count=5, sleep=10):
+        try:
+            logging.info(f'{restore_message_id} Restoring message...')
+            if 0 not in link or 1 not in link:
+                raise Exception('Metadata and/or message link not found in storage')
+            with self.storage.get(link[0]) as mf:
+                if mf is None:
+                    raise Exception('Metadata link open fail')
+                meta = json.load(mf)
+            logging.debug(f"{restore_message_id} {meta}")
+            with self.storage.get(link[1]) as mf:
+                if mf is None:
+                    raise Exception('Message link open fail')
+                message_content = gzip.decompress(mf.read())
+            label_ids_from_message: [str] = meta['labelIds']
+            try:
+                label_ids_from_message.index('CHAT')
+                # not restorable as message
+                logging.info(f'{restore_message_id} message with CHAT label is not supported.')
+                return
+            except ValueError:
+                pass
+            label_ids = self.__get_restore_label_ids(to_email=to_email,
+                                                     labels_from_storage=labels_from_storage,
+                                                     labels_form_server=labels_form_server,
+                                                     add_labels=add_labels,
+                                                     label_ids_from_message=label_ids_from_message)
+            # print(file_content)
+            message_data = {
+                'labelIds': label_ids,
+                'raw': encode_base64url(message_content),
+            }
+            # print(meta['labelIds'])
+            # print(message_data)
+            subject = str_trim(meta.get('snippet', ''), 64)
+            for i in range(try_count):
+                service = self.__get_service(to_email)
+                try:
+                    logging.info(f'{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})')
+                    if self.dry_mode:
+                        logging.info(f'{restore_message_id} DRY MODE insert message')
+                        result = {'id': f'DRYMODE{datetime.utcnow().timestamp():1.3f}'}
+                    else:
+                        result = service.users().messages().insert(userId='me', internalDateSource='dateHeader',
+                                                                   body=message_data).execute()
+                    logging.debug(f"Message uploaded {result}")
+                    logging.info(f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})')
+                    return result
+                except HttpError as e:
+                    if i == try_count - 1:
+                        # last trys
+                        raise e
+                    logging.error(f"{restore_message_id} Exception: {e}")
+                    logging.info(f"{restore_message_id} Wait {sleep} seconds and retry..")
+                    time.sleep(sleep)
+                    continue
+                finally:
+                    if service is not None:
+                        self.__release_service(service, to_email)
+        except BaseException as e:
+            with self.__lock:
+                self.__error_count += 1
+            logging.error(f"{restore_message_id} Exception: {e}")
+            logging.error(traceback.format_exc())
+
+    def __restore_load_labels(self, links: LinkList[LinkInterface]) -> dict[str, dict[str, any]] | None:
+        # TODO add date filtering for max mutation
+        logging.info(f'Loading labels...')
+        labels_links: dict[str, LinkInterface] = links.find(
+            f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata,
+            g=lambda l: [l.mutation()]
+        )
+        labels_links = collections.OrderedDict(sorted(labels_links.items()))
+        result = {}
+        for key in labels_links:
+            labels_link = labels_links[key]
+            with self.storage.get(labels_link) as lf:
+                if lf is None:
+                    logging.error(f'Stored labels open failed: {labels_link}')
+                    return None
+                else:
+                    json_data: list[dict[str, any]] = json_load(lf)
+                    if json_data is None:
+                        logging.error(f'Stored labels read from JSON failed')
+                        return None
+                    for item in json_data:
+                        if item.get('id') is None:
+                            logging.error(f'Invalid structure of stored labels')
+                            return None
+                        result[item.get('id')] = item
+        logging.info(f'Labels loaded successfully ({len(result)})')
+        return result
 
     def restore(self, to_email=None, timezone=None, filter_date_from=None, filter_date_to=None,
                 restore_deleted=False, add_labels=None):
+        self.__error_count = 0
         if timezone is None:
             timezone = tzlocal.get_localzone()
         if to_email is None:
             to_email = self.email
-        self.__error_count = 0
         logging.info(f'Used timezone: {timezone}')
         # TODO parse filter dates
         # TODO if filter date is None then use max or min
@@ -497,59 +546,47 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f'Stored items: {len(stored_data_all)}')
-        logging.info(f'Loading labels')
-        # TODO add date filtering for max mutation
-        labels_links: dict[str, LinkInterface] = stored_data_all.find(
-            f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata,
-            g=lambda l: [l.mutation()]
-        )
-        labels_links = collections.OrderedDict(sorted(labels_links.items()))
-        print(labels_links)
-        exit(1)
-        del labels_links
-        logging.info('Labels loaded successfully')
 
-        # TODO restore only used labels ??
-        logging.info("Restoring labels...")
-        labels_user = self.__get_user_labels_from_local()
-        labels_from_server_src_email = self.__get_user_labels_only(
-            self.__labels_index_by_key(self.__get_labels_from_server(), 'id'))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            for label_id in labels_user:
-                executor.submit(self.__restore_label, labels_user[label_id]['name'], to_email)
-        if add_labels is not None and len(add_labels) > 0:
-            for label_name in add_labels:
-                self.__restore_label(label_name, to_email)
-        logging.info("Labels restored")
-
-        logging.info("Getting labels from server...")
-        labels_from_server_dest_email = self.__get_user_labels_only(
-            self.__labels_index_by_key(self.__get_labels_from_server(to_email), 'id'))
-        labels_from_server_to_email_by_name = self.__labels_index_by_key(labels_from_server_dest_email, 'name')
-        add_label_ids = []
-        if add_labels is not None and len(add_labels) > 0:
-            add_label_ids = []
-            for label_name in add_labels:
-                add_label_ids.append(labels_from_server_to_email_by_name[label_name]['id'])
-        logging.info("Labels downloaded")
-
+        latest_labels_from_storage = self.__restore_load_labels(stored_data_all)
+        if latest_labels_from_storage is None:
+            logging.error('Stored labels loading failed')
+            return False
+        _labels_from_server = self.__get_labels_from_server()
+        if _labels_from_server is None:
+            logging.error('Loading labels from server failed')
+            return False
+        labels_from_server = {}
+        for label in _labels_from_server:
+            if 'id' not in label:
+                raise Exception('Not supported label structure')
+            labels_from_server[label.get('id')] = label
+        del _labels_from_server
         messages_from_server_dest_email = {}
         if self.email == to_email:
-            messages_from_server_dest_email = self.__get_all_email_ids_from_server(email=to_email)
+            messages_from_server_dest_email = self.__get_all_messages_from_server()
 
         logging.info("Upload messages...")
+        stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
+            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()),
+            g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
+        del stored_data_all
+
+        if restore_deleted is not True:
+            logging.warning('Tasks not found, see more eg. --restore-deleted')
+            return True
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
-            for message_id in self.__emails_locally:
+            for message_id in stored_messages:
                 if message_id in messages_from_server_dest_email:
                     logging.debug(f'{message_id} exists, skip it')
-                else:
-                    executor.submit(self.__restore_message, self.__emails_locally[message_id], to_email,
-                                    labels_from_server_src_email,
-                                    labels_from_server_dest_email,
-                                    add_label_ids)
+                    continue
+                executor.submit(self.__restore_message, message_id, stored_messages[message_id], to_email,
+                                latest_labels_from_storage,
+                                labels_from_server,
+                                add_labels)
 
         if self.__error_count > 0:
-            logging.error('Messages uploaded with ' + str(self.__error_count) + ' errors')
+            logging.error(f'Messages uploaded with {self.__error_count} errors')
             return False
         logging.info("Messages uploaded successfully")
 
