@@ -17,7 +17,8 @@ from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
 
 from gwb import global_properties
-from gwb.helpers import get_path, decode_base64url, encode_base64url, str_trim, json_load
+from gwb.filters.filter_interface import FilterInterface
+from gwb.helpers import decode_base64url, encode_base64url, str_trim, json_load, is_rate_limit_exceeded
 from gwb.storage.storage_interface import StorageInterface, LinkList, LinkInterface, Data
 
 
@@ -115,8 +116,10 @@ class Gmail:
                     # last try
                     logging.error(f"{message_id} message download failed")
                     raise e
-                logging.error(e)
-                logging.error(traceback.format_exc())
+                if not is_rate_limit_exceeded(e):
+                    logging.exception(f'HTTP error')
+                else:
+                    logging.warning(f'{message_id} Rate limit exceeded')
                 logging.info(f"{message_id} Wait {sleep} seconds and retry..")
                 time.sleep(sleep)
                 continue
@@ -132,7 +135,7 @@ class Gmail:
             .set_properties({LinkInterface.property_object: True})
         result = self.__storage_put(link, data=gzip.compress(raw_message, compresslevel=9))
         if result:
-            logging.debug(f'{message_id} message is saves successfully')
+            logging.info(f'{message_id} message saved')
         else:
             raise Exception('Mail message save failed')
 
@@ -185,8 +188,7 @@ class Gmail:
                         else:
                             logging.warning(f'{message_id} local version of meta data is not exists')
                 except BaseException as e:
-                    logging.error(f'{message_id} metadata load as json failed: {e}')
-                    logging.error(traceback.format_exc())
+                    logging.exception(f'{message_id} metadata load as json failed: {e}')
 
             if write_meta:
                 link = self.storage.new_link(object_id=message_id, extension='json',
@@ -206,8 +208,7 @@ class Gmail:
                 self.__error_count += 1
             if str(e) == 'SKIP':
                 return
-            logging.error(f'{message_id} {e}')
-            logging.error(traceback.format_exc())
+            logging.exception(f'{message_id} {e}')
 
     def __get_all_messages_from_server(self, email=None):
         if email is None:
@@ -271,8 +272,7 @@ class Gmail:
                         else:
                             logging.debug('labels is changed')
             except BaseException as e:
-                logging.error(f'labels loading or parsing failed: {e}')
-                logging.error(traceback.format_exc())
+                logging.exception(f'labels loading or parsing failed: {e}')
         link = self.storage.new_link(object_id=Gmail.object_id_labels, extension='json',
                                      created_timestamp=None) \
             .set_properties({LinkInterface.property_metadata: True})
@@ -466,13 +466,17 @@ class Gmail:
                                                      labels_form_server=labels_form_server,
                                                      add_labels=add_labels,
                                                      label_ids_from_message=label_ids_from_message)
-            # print(file_content)
+            label_names = []
+            for label_id in meta['labelIds']:
+                label_names.append(labels_form_server[label_id]['name'])
+
+            logging.info(
+                f"{restore_message_id} snippet: {str_trim(meta['snippet'], 80)} / labels: {', '.join(label_names)}")
+
             message_data = {
                 'labelIds': label_ids,
                 'raw': encode_base64url(message_content),
             }
-            # print(meta['labelIds'])
-            # print(message_data)
             subject = str_trim(meta.get('snippet', ''), 64)
             for i in range(try_count):
                 service = self.__get_service(to_email)
@@ -501,8 +505,7 @@ class Gmail:
         except BaseException as e:
             with self.__lock:
                 self.__error_count += 1
-            logging.error(f"{restore_message_id} Exception: {e}")
-            logging.error(traceback.format_exc())
+            logging.exception(f"{restore_message_id} Exception: {e}")
 
     def __restore_load_labels(self, links: LinkList[LinkInterface]) -> dict[str, dict[str, any]] | None:
         # TODO add date filtering for max mutation
@@ -532,14 +535,11 @@ class Gmail:
         logging.info(f'Labels loaded successfully ({len(result)})')
         return result
 
-    def restore(self, to_email=None, timezone=None, filter_date_from=None, filter_date_to=None,
+    def restore(self, item_filter: FilterInterface, to_email=None,
                 restore_deleted=False, add_labels=None):
         self.__error_count = 0
-        if timezone is None:
-            timezone = tzlocal.get_localzone()
         if to_email is None:
             to_email = self.email
-        logging.info(f'Used timezone: {timezone}')
         # TODO parse filter dates
         # TODO if filter date is None then use max or min
 
@@ -567,7 +567,11 @@ class Gmail:
 
         logging.info("Upload messages...")
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
-            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()),
+            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()) and item_filter.match({
+                'message-id': l.id(),
+                'link': l,
+                'server-data': messages_from_server_dest_email,
+            }),
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
         del stored_data_all
 
@@ -577,8 +581,7 @@ class Gmail:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in stored_messages:
-                if message_id in messages_from_server_dest_email:
-                    logging.debug(f'{message_id} exists, skip it')
+                if stored_messages[message_id].get(0) is None or stored_messages[message_id].get(1) is None:
                     continue
                 executor.submit(self.__restore_message, message_id, stored_messages[message_id], to_email,
                                 latest_labels_from_storage,

@@ -1,39 +1,14 @@
 from __future__ import annotations
 
 import base64
-import datetime
+from datetime import datetime
 import json
 import logging
-import traceback
+from json import JSONDecodeError
 from typing import IO
 
-
-def get_path(account, root, file=None, extension=None, subdir=None, group=None, mutation=None, deleted=False):
-    path = root + "/" + account
-    if group is not None:
-        if isinstance(group, list):
-            path += '/' + '/'.join(group)
-        else:
-            path += '/' + group
-    if subdir is not None:
-        if isinstance(subdir, list):
-            path += '/' + '/'.join(subdir)
-        else:
-            path += '/' + subdir
-    if file is None:
-        return path
-
-    file_parts = [file]
-    if mutation is not None:
-        if isinstance(mutation, datetime.datetime):
-            file_parts.append(mutation.strftime("%d%m%Y%H%M%S"))
-        else:
-            file_parts.append(mutation)
-    if deleted:
-        file_parts.append('deleted')
-    if extension is not None:
-        file_parts.append(extension)
-    return path + '/' + '.'.join(file_parts)
+import tzlocal
+from googleapiclient.errors import HttpError
 
 
 def str_trim(text, length, postfix="..."):
@@ -52,14 +27,36 @@ def encode_base64url(data):
     return base64.urlsafe_b64encode(data).decode('utf-8').replace('=', '')
 
 
-def parse_date(date: str):
-    pass
+def parse_date(date: str, tz: tzlocal) -> datetime:
+    try:
+        return datetime.strptime(date, '%Y-%m-%d %H:%M:%S').astimezone(tz)
+    except ValueError:
+        try:
+            return datetime.strptime(f'{date} 00:00:00', '%Y-%m-%d %H:%M:%S').astimezone(tz)
+        except ValueError:
+            raise ValueError(f'Date time parsing failed: {date}')
 
 
 def json_load(io: IO[bytes]) -> list[any] | dict[str, any] | None:
     try:
         return json.load(io)
+    except JSONDecodeError as e:
+        logging.exception(f'Invalid JSON format: {e}')
     except BaseException as e:
-        logging.error(f'JSON load error: {e}')
-        logging.error(traceback.format_exc())
+        logging.exception(f'JSON load error: {e}')
     return None
+
+
+def is_rate_limit_exceeded(e) -> bool:
+    if not isinstance(e, HttpError):
+        return False
+    e: HttpError
+    if e.status_code != 403:
+        return False
+    d = e.error_details
+    if not isinstance(d, list):
+        return False
+    if len(d) != 1:
+        return False
+    item = d[0]
+    return item.get('domain') == 'usageLimits' and item.get('reason') == 'rateLimitExceeded'

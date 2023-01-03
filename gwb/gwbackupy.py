@@ -2,13 +2,14 @@ import argparse
 import threading
 import logging
 import sys
-import traceback
 from tzlocal import get_localzone
 import pytz as pytz
 
 import gwb.global_properties as global_properties
+from gwb.filters.gmail_filter import GmailFilter
 
 from gwb.gmail import Gmail
+from gwb.helpers import parse_date
 from gwb.storage.file_storage import FileStorage
 
 lock = threading.Lock()
@@ -53,8 +54,12 @@ def parse_arguments():
                                       help='Add label to restored emails', default=None, dest='add_labels')
     gmail_restore_parser.add_argument('--restore-deleted', help='Restore deleted emails',
                                       default=False, action='store_true')
-    gmail_restore_parser.add_argument('--filter-date-from', type=str, help='Filter date from', default=None)
-    gmail_restore_parser.add_argument('--filter-date-to', type=str, help='Filter date to', default=None)
+    gmail_restore_parser.add_argument('--filter-date-from', type=str,
+                                      help='Filter date from (inclusive, format: yyyy-mm-dd or yyyy-mm-dd hh:mm:ss)',
+                                      default=None)
+    gmail_restore_parser.add_argument('--filter-date-to', type=str,
+                                      help='Filter date to (exclusive, format: yyyy-mm-dd or yyyy-mm-dd hh:mm:ss)',
+                                      default=None)
 
     args = parser.parse_args(args=None if sys.argv[1:] else ['--help'])
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
@@ -87,10 +92,20 @@ def cli_startup():
             if args.command == 'restore':
                 if args.add_labels is None:
                     args.add_labels = ['gwbackupy']
+                item_filter = GmailFilter()
+                if args.restore_deleted:
+                    item_filter.is_deleted()
+                    logging.info("Filter options: deleted")
+                if args.filter_date_from is not None:
+                    dt = parse_date(args.filter_date_from, args.timezone)
+                    item_filter.date_from(dt)
+                    logging.info(f"Filter options: date from {dt}")
+                if args.filter_date_to is not None:
+                    dt = parse_date(args.filter_date_to, args.timezone)
+                    item_filter.date_to(dt)
+                    logging.info(f"Filter options: date to {dt}")
                 if gmail.restore(to_email=args.to_email,
-                                 timezone=args.timezone,
-                                 filter_date_from=args.filter_date_from,
-                                 filter_date_to=args.filter_date_to,
+                                 item_filter=item_filter,
                                  restore_deleted=args.restore_deleted,
                                  add_labels=args.add_labels,
                                  ):
@@ -99,9 +114,8 @@ def cli_startup():
                     exit(1)
             else:
                 raise Exception('Unknown command')
-    except Exception as e:
-        logging.error(e)
-        logging.error(traceback.format_exc())
+    except Exception:
+        logging.exception('CLI startup failed')
         exit(1)
 
 

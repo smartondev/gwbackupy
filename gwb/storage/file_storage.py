@@ -6,7 +6,6 @@ import logging
 import os
 import re
 import shutil
-import traceback
 from builtins import float
 from datetime import datetime, timezone
 from typing import IO
@@ -141,12 +140,13 @@ class FileStorage(StorageInterface):
             'path': path,
             'object_id': object_id,
             'extension': extension,
-            'mutation': self.__gen_mutation(),
+            'mutation': FileStorage.__gen_mutation(),
         })
         return link
 
-    def __gen_mutation(self):
-        return datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    @staticmethod
+    def __gen_mutation():
+        return str(int(datetime.utcnow().timestamp() * 1000))
 
     def get(self, link: FileLink) -> IO[bytes] | None:
         file_path = link.get_file_path()
@@ -174,8 +174,7 @@ class FileStorage(StorageInterface):
                     os.remove(link.get_file_path())
                 return True
             except BaseException as e:
-                logging.error(f'Delete fail {link.get_file_path()} with error: {e}')
-                logging.error(traceback.format_exc())
+                logging.exception(f'Delete fail {link.get_file_path()} with error: {e}')
                 return False
 
         dst = copy.deepcopy(link).fill({
@@ -189,8 +188,7 @@ class FileStorage(StorageInterface):
                     return False
                 self.put(dst, f)
         except BaseException as e:
-            logging.error(f'Copy as new mutation is failed {link.get_file_path()} -> {dst.get_file_path()}: {e}')
-            logging.error(traceback.format_exc())
+            logging.exception(f'Copy as new mutation is failed {link.get_file_path()} -> {dst.get_file_path()}: {e}')
             return False
         return True
 
@@ -219,50 +217,12 @@ class FileStorage(StorageInterface):
                     try:
                         os.remove(file_path)
                     except BaseException as e:
-                        logging.error(f'Temporary file remove fail {file_path}: {e}')
-                        logging.error(traceback.format_exc())
+                        logging.exception(f'Temporary file remove fail {file_path}: {e}')
                     continue
 
                 if f is None or f(link):
                     result.append(link)
         return result
-
-    def __get_path(self, path: Path, oid: str | None = None, mime: str | None = None, mutation: str | None = None,
-                   deleted: bool = False) -> str:
-        p = self.root
-        if isinstance(path, str):
-            p += path
-
-        if oid is None:
-            return p
-        p += '/' + oid
-        if mutation is not None:
-            p += f'.{mutation}'
-        if deleted:
-            p += f'.deleted'
-        if mime is not None:
-            p += f'.{FileStorage.__mime2extension(mime)}'
-        return p
-
-    @staticmethod
-    def __extension2mime(extension: str) -> str | None:
-        if extension == 'json':
-            return StorageInterface.mime_json
-        if extension == 'eml':
-            return StorageInterface.mime_eml
-        if extension == 'eml.gz':
-            return StorageInterface.mime_eml_gz
-        return None
-
-    @staticmethod
-    def __mime2extension(mime: str) -> str | None:
-        if mime == StorageInterface.mime_eml:
-            return 'eml'
-        if mime == StorageInterface.mime_eml_gz:
-            return 'eml.gz'
-        if mime == StorageInterface.mime_json:
-            return 'json'
-        return None
 
     @staticmethod
     def __remove(file_path: str) -> bool:
@@ -271,15 +231,13 @@ class FileStorage(StorageInterface):
             if not exists:
                 return True
         except BaseException as e:
-            logging.error(f'File exists check fail {file_path}: {e}')
-            logging.error(traceback.format_exc())
+            logging.exception(f'File exists check fail {file_path}: {e}')
             return False
 
         try:
             os.remove(file_path)
         except BaseException as e:
-            logging.error(f'File remove fail {file_path}: {e}')
-            logging.error(traceback.format_exc())
+            logging.exception(f'File remove fail {file_path}: {e}')
             return False
         return True
 
@@ -292,13 +250,10 @@ class FileStorage(StorageInterface):
                 try:
                     os.makedirs(path, exist_ok=True)
                 except BaseException as e:
-                    logging.error(
-                        f'Directory create fail {path}: {e}')
-                    logging.error(traceback.format_exc())
+                    logging.exception(f'Directory create fail {path}: {e}')
                     return False
         except BaseException as e:
-            logging.error(f'Directory exists check fail {path}: {e}')
-            logging.error(traceback.format_exc())
+            logging.exception(f'Directory exists check fail {path}: {e}')
             return False
 
         file_path_tmp = f'{file_path}.tmp'
@@ -316,14 +271,12 @@ class FileStorage(StorageInterface):
                     else:
                         raise RuntimeError(f'Not supported data type: {type(data)}')
             except BaseException as e:
-                logging.error(f'Temporary file writing fail {file_path_tmp}: {e}')
-                logging.error(traceback.format_exc())
+                logging.exception(f'Temporary file writing fail {file_path_tmp}: {e}')
                 return False
             try:
                 shutil.move(file_path_tmp, file_path)
             except BaseException as e:
-                logging.error(f'File rename fail {file_path_tmp} -> {file_path}: {e}')
-                logging.error(traceback.format_exc())
+                logging.exception(f'File rename fail {file_path_tmp} -> {file_path}: {e}')
                 return False
             return True
         finally:

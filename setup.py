@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 setup(
     name='gwbackupy',
     version=global_properties.version,
-    packages=['gwb', 'gwb.storage'],
+    packages=['gwb', 'gwb.storage', 'gwb.filters'],
     url='https://github.com/smartondev/gwbackupy',
     license='BSD 3-Clause "New" or "Revised" License',
     author='Márton Somogyi',
