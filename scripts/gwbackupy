@@ -2,4 +2,4 @@
 
 from gwb import gwbackupy
 
-gwbackupy.startup()
+gwbackupy.cli_startup()
