@@ -8,6 +8,7 @@
 - Enh: Separation of service parameters for easy reusability in another python library or package
 - Enh #13: Self managed versioned file storage with extendable custom storage interface (eg. for database)
 - Enh #9: Dry mode
+- Enh: Cleaner log messages
 
 ## 0.4.0
 
