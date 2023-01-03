@@ -27,14 +27,14 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
     - authentication with p12/json service account file.
 
       *It can be applied to the entire workspace.*
+- Version controlled storage for new and deleted items.
 - Gmail
     - full backup
       Download all messages
     - full backup continuously
       Scanning the full mailbox, but download only the new messages.
     - full restore to an empty mailbox to same or other mailbox
-    - restore deleted message
-    - *partially restore with pre-filtered files at the file system level*
+    - restore deleted message in specified interval
 
 Additional functionality under development.
 
@@ -44,7 +44,6 @@ Additional functionality under development.
     - list all workspace accounts email addresses
 - Gmail
     - Support for standard gmail account authentication
-    - Filtered restore
 
 ## Install
 
@@ -79,6 +78,9 @@ gwbackupy \
   gmail restore \
   --add-label "backup-restore-1231" \
   --add-label "more-restore-label" \
+  --filter-date-from <date or datetime>
+  --filter-date-to <date or datetime>
+  --restore-deleted
   --email <source backup mailbox email address> \
   --to-email <destination mailbox email address> # If you want to a different destination account
 ```
