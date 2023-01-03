@@ -115,7 +115,7 @@ class StorageInterface:
     def new_link(self, object_id: str, extension: str, created_timestamp: int | float | None = None) -> LinkInterface:
         pass
 
-    def get(self, link: LinkInterface) -> IO[bytes] | None:
+    def get(self, link: LinkInterface) -> IO[bytes]:
         pass
 
     def put(self, link: LinkInterface, data: Data) -> bool:

@@ -48,6 +48,13 @@ class FileLink(LinkInterface):
             self.__properties[LinkInterface.property_mutation] = values['mutation']
         if 'path' in values:
             self.__path = values['path']
+        for key in values:
+            if key not in ['object_id', 'deleted', 'object', 'metadata', 'extension', 'mutation', 'path']:
+                value = values[key]
+                if isinstance(value, str):
+                    if value == '':
+                        value = True
+                    self.__properties[key] = value
         return self
 
     def get_file_path(self) -> str:
@@ -148,10 +155,8 @@ class FileStorage(StorageInterface):
     def __gen_mutation():
         return str(int(datetime.utcnow().timestamp() * 1000))
 
-    def get(self, link: FileLink) -> IO[bytes] | None:
+    def get(self, link: FileLink) -> IO[bytes]:
         file_path = link.get_file_path()
-        if not os.path.exists(file_path):
-            return None
         return open(file_path, 'rb')
 
     def put(self, link: FileLink, data: Data) -> bool:

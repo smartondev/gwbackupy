@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import concurrent.futures
 import gzip
+import hashlib
 import json
 import logging
-import os
+import tempfile
 import threading
 import time
-import traceback
 import collections
 from datetime import datetime
 
-import tzlocal
+from google.auth.transport import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
@@ -26,10 +28,16 @@ class Gmail:
     """Gmail service"""
     object_id_labels = '--gwbackupy-labels--'
     """Gmail's special object ID for storing labels"""
+    object_id_token = '--gwbackupy-token--'
+    """Gmail's special object ID for credentials token"""
+    object_ids_special = [object_id_labels, object_id_token]
 
-    def __init__(self, email: str, service_account_email: str, service_account_file_path: str,
+    def __init__(self, email: str, service_account_email: str | None, service_account_file_path: str | None,
+                 credentials_file_path: str | None,
                  storage: StorageInterface, batch_size: int = 10, labels: list[str] | None = None,
                  dry_mode: bool = False):
+        self.credentials_file_path = credentials_file_path
+        self.credentials_token_links: dict[str, LinkInterface] = dict()
         self.dry_mode = dry_mode
         self.email = email
         self.storage = storage
@@ -49,39 +57,67 @@ class Gmail:
         service = None
         if email is None:
             email = self.email
+        scopes = [
+            'https://mail.google.com/',
+        ]
         with self.__lock:
             if email not in self.__services.keys():
                 self.__services[email] = []
             if len(self.__services[email]) > 0:
                 logging.debug('Reuse service')
                 service = self.__services[email].pop()
-        if service is None:
-            logging.debug('Create new service')
-            extension = self.service_account_file_path.split('.')[-1].lower()
-            credentials = None
-            scopes = [
-                'https://mail.google.com/',
-            ]
-            if extension == 'p12':
-                if self.service_account_email is None or self.service_account_email.strip() == '':
-                    raise Exception("Service account email is required for p12 keyfile")
-                credentials = ServiceAccountCredentials.from_p12_keyfile(
-                    self.service_account_email,
-                    self.service_account_file_path,
-                    'notasecret',
-                    scopes=scopes)
-            elif extension == 'json':
-                credentials = ServiceAccountCredentials.from_json_keyfile_name(
-                    self.service_account_file_path,
-                    scopes
-                )
-                pass
+            if service is None:
+                logging.debug('Create new service')
+                credentials = None
+                if self.credentials_file_path is not None:
+                    fd, temp = tempfile.mkstemp()
+                    email_md5 = hashlib.md5(email.encode('utf-8')).hexdigest().lower()
+                    if email_md5 in self.credentials_token_links:
+                        logging.debug('Try to load previously saved token')
+                        token_link = self.credentials_token_links.get(email_md5)
+                        with self.storage.get(token_link) as tf:
+                            with open(temp, 'wb') as tfo:
+                                tfo.write(tf.read())
+                        credentials = Credentials.from_authorized_user_file(temp)
+                    if not credentials or not credentials.valid:
+                        if credentials and credentials.expired and credentials.refresh_token:
+                            credentials.refresh_token(Request())
+                        else:
+                            flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file_path, scopes)
+                            credentials = flow.run_local_server(port=0)
 
-            if credentials is None:
-                raise Exception(f'Not supported service account file extension')
+                        token_link = self.storage.new_link(Gmail.object_id_token, 'json')
+                        token_link.set_properties({
+                            'email': email_md5
+                        })
+                        result = self.storage.put(token_link, credentials.to_json())
+                        if not result:
+                            logging.error('Failed to store token')
+                        else:
+                            logging.info('token stored successfully')
+                elif self.service_account_file_path is not None:
+                    extension = self.service_account_file_path.split('.')[-1].lower()
+                    if extension == 'p12':
+                        if self.service_account_email is None or self.service_account_email.strip() == '':
+                            raise Exception("Service account email is required for p12 keyfile")
+                        credentials = ServiceAccountCredentials.from_p12_keyfile(
+                            self.service_account_email,
+                            self.service_account_file_path,
+                            'notasecret',
+                            scopes=scopes)
+                    elif extension == 'json':
+                        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+                            self.service_account_file_path,
+                            scopes
+                        )
+                        pass
+                    else:
+                        raise Exception(f'Not supported service account file extension')
 
-            credentials = credentials.create_delegated(email)
-            service = build('gmail', 'v1', credentials=credentials)
+                    credentials = credentials.create_delegated(email)
+                else:
+                    raise Exception(f'Not supported credentials')
+                service = build('gmail', 'v1', credentials=credentials)
         return service
 
     def __release_service(self, service, email=None):
@@ -180,13 +216,10 @@ class Gmail:
                 logging.log(global_properties.log_finest, f'{message_id} load local version of meta data')
                 try:
                     with self.storage.get(latest_meta_link) as mf:
-                        if mf is not None:
-                            d = json.load(mf)
-                            logging.log(global_properties.log_finest, f'{message_id} metadata is loaded from local')
-                            if d == data:
-                                write_meta = False
-                        else:
-                            logging.warning(f'{message_id} local version of meta data is not exists')
+                        d = json.load(mf)
+                        logging.log(global_properties.log_finest, f'{message_id} metadata is loaded from local')
+                        if d == data:
+                            write_meta = False
                 except BaseException as e:
                     logging.exception(f'{message_id} metadata load as json failed: {e}')
 
@@ -262,15 +295,12 @@ class Gmail:
             logging.debug('labels is exists, checking for changes')
             try:
                 with self.storage.get(link) as f:
-                    if f is None:
-                        logging.error('labels loading failed.')
+                    d = json.load(f)
+                    if d == labels:
+                        logging.info('Labels is not changed, not saving it')
+                        return True
                     else:
-                        d = json.load(f)
-                        if d == labels:
-                            logging.info('Labels is not changed, not saving it')
-                            return True
-                        else:
-                            logging.debug('labels is changed')
+                        logging.debug('labels is changed')
             except BaseException as e:
                 logging.exception(f'labels loading or parsing failed: {e}')
         link = self.storage.new_link(object_id=Gmail.object_id_labels, extension='json',
@@ -302,13 +332,17 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f'Stored items: {len(stored_data_all)}')
+        self.credentials_token_links = stored_data_all.find(
+            f=lambda l: l.id() == Gmail.object_id_token,
+            g=lambda l: [l.get_properties().get('email', '')]
+        )
         labels_link = stored_data_all.find(f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata)
         if not self.__backup_labels(labels_link):
             logging.error('Backup finished with storing labels failed')
             return False
 
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
-            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()),
+            f=lambda l: l.id() not in Gmail.object_ids_special and (l.is_metadata() or l.is_object()),
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
         del stored_data_all
         for message_id in list(stored_messages.keys()):
@@ -445,13 +479,9 @@ class Gmail:
             if 0 not in link or 1 not in link:
                 raise Exception('Metadata and/or message link not found in storage')
             with self.storage.get(link[0]) as mf:
-                if mf is None:
-                    raise Exception('Metadata link open fail')
                 meta = json.load(mf)
             logging.debug(f"{restore_message_id} {meta}")
             with self.storage.get(link[1]) as mf:
-                if mf is None:
-                    raise Exception('Message link open fail')
                 message_content = gzip.decompress(mf.read())
             label_ids_from_message: [str] = meta['labelIds']
             try:
@@ -519,19 +549,15 @@ class Gmail:
         for key in labels_links:
             labels_link = labels_links[key]
             with self.storage.get(labels_link) as lf:
-                if lf is None:
-                    logging.error(f'Stored labels open failed: {labels_link}')
+                json_data: list[dict[str, any]] = json_load(lf)
+                if json_data is None:
+                    logging.error(f'Stored labels read from JSON failed')
                     return None
-                else:
-                    json_data: list[dict[str, any]] = json_load(lf)
-                    if json_data is None:
-                        logging.error(f'Stored labels read from JSON failed')
+                for item in json_data:
+                    if item.get('id') is None:
+                        logging.error(f'Invalid structure of stored labels')
                         return None
-                    for item in json_data:
-                        if item.get('id') is None:
-                            logging.error(f'Invalid structure of stored labels')
-                            return None
-                        result[item.get('id')] = item
+                    result[item.get('id')] = item
         logging.info(f'Labels loaded successfully ({len(result)})')
         return result
 
@@ -567,7 +593,8 @@ class Gmail:
 
         logging.info("Upload messages...")
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
-            f=lambda l: l.id() != Gmail.object_id_labels and (l.is_metadata() or l.is_object()) and item_filter.match({
+            f=lambda l: l.id() not in Gmail.object_ids_special and (
+                    l.is_metadata() or l.is_object()) and item_filter.match({
                 'message-id': l.id(),
                 'link': l,
                 'server-data': messages_from_server_dest_email,
