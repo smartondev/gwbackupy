@@ -204,7 +204,7 @@ class Gmail:
             data = self.__get_message_from_server(message_id, message_format)
             if data is None:
                 # (deleted)
-                logging.info(f'{message_id} is not found')
+                logging.info(f'{message_id} is not found on server')
                 return
 
             subject = str_trim(data.get('snippet', ''), 64)
