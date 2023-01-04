@@ -574,8 +574,6 @@ class Gmail:
         self.__error_count = 0
         if to_email is None:
             to_email = self.email
-        # TODO parse filter dates
-        # TODO if filter date is None then use max or min
 
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
