@@ -11,7 +11,7 @@ import time
 import collections
 from datetime import datetime
 
-from google.auth.transport import Request
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
@@ -81,20 +81,28 @@ class Gmail:
                         credentials = Credentials.from_authorized_user_file(temp)
                     if not credentials or not credentials.valid:
                         if credentials and credentials.expired and credentials.refresh_token:
-                            credentials.refresh_token(Request())
+                            credentials.refresh(Request())
                         else:
                             flow = InstalledAppFlow.from_client_secrets_file(self.credentials_file_path, scopes)
                             credentials = flow.run_local_server(port=0)
 
-                        token_link = self.storage.new_link(Gmail.object_id_token, 'json')
-                        token_link.set_properties({
+                        token_link_new = self.storage.new_link(Gmail.object_id_token, 'json')
+                        token_link_new.set_properties({
                             'email': email_md5
                         })
-                        result = self.storage.put(token_link, credentials.to_json())
+                        result = self.storage.put(token_link_new, credentials.to_json())
                         if not result:
-                            logging.error('Failed to store token')
+                            raise Exception(f'{email} Failed to store token ({token_link_new})')
                         else:
                             logging.info('token stored successfully')
+                            token_link_old = self.credentials_token_links.get(email_md5)
+                            self.credentials_token_links[email_md5] = token_link_new
+                            if token_link_old:
+                                result = self.storage.remove(token_link_old, False)
+                                if result:
+                                    logging.debug(f'{email} Old token removed successfully')
+                                else:
+                                    logging.warning(f'{email} Old token removed fail')
                 elif self.service_account_file_path is not None:
                     extension = self.service_account_file_path.split('.')[-1].lower()
                     if extension == 'p12':
@@ -572,6 +580,10 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f'Stored items: {len(stored_data_all)}')
+        self.credentials_token_links = stored_data_all.find(
+            f=lambda l: l.id() == Gmail.object_id_token,
+            g=lambda l: [l.get_properties().get('email', '')]
+        )
 
         latest_labels_from_storage = self.__restore_load_labels(stored_data_all)
         if latest_labels_from_storage is None:
