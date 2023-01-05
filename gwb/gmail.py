@@ -32,9 +32,11 @@ class Gmail:
     """Gmail's special object ID for credentials token"""
     object_ids_special = [object_id_labels, object_id_token]
 
-    def __init__(self, email: str, service_account_email: str | None, service_account_file_path: str | None,
-                 credentials_file_path: str | None,
-                 storage: StorageInterface, batch_size: int = 10, labels: list[str] | None = None,
+    def __init__(self, email: str, storage: StorageInterface,
+                 service_account_email: str | None = None,
+                 service_account_file_path: str | None = None,
+                 credentials_file_path: str | None = None,
+                 batch_size: int = 10, labels: list[str] | None = None,
                  dry_mode: bool = False):
         self.credentials_file_path = credentials_file_path
         self.credentials_token_links: dict[str, LinkInterface] = dict()
