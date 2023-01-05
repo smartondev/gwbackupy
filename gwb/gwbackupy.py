@@ -37,7 +37,9 @@ def parse_arguments():
     parser.add_argument('--service-account-email', type=str, default=None,
                         help='Email of the service account (required for p12 keyfile)')
     parser.add_argument('--service-account-key-filepath', type=str,
-                        help='Path to the service account key file', required=True)
+                        help='Path to the service account key file', required=False)
+    parser.add_argument('--credentials-filepath', type=str,
+                        help='Path to the credentials file', required=False)
     parser.add_argument('--workdir', type=str, help='Path to the workdir', required=False, default='./data')
     service_parser = parser.add_subparsers(dest='service')
     gmail_parser = service_parser.add_parser('gmail', help='GMail service commands')
@@ -70,17 +72,21 @@ def parse_arguments():
         filemode="w",
         format=Log_Format,
         level=log_levels[args.log_level])
+    if (args.credentials_filepath is None and args.service_account_key_filepath is None) or \
+            (args.credentials_filepath is not None and args.service_account_key_filepath is not None):
+        parser.error('at least one of --credentials-filepath and --service-account-key-filepath required')
     return args
 
 
 def cli_startup():
     try:
         args = parse_arguments()
-        storage = FileStorage(args.workdir + '/' + args.email)
         if args.service == 'gmail':
+            storage = FileStorage(args.workdir + '/' + args.email + '/gmail')
             gmail = Gmail(email=args.email,
                           service_account_email=args.service_account_email,
                           service_account_file_path=args.service_account_key_filepath,
+                          credentials_file_path=args.credentials_filepath,
                           batch_size=args.batch_size,
                           storage=storage,
                           dry_mode=args.dry)
