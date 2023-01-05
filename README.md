@@ -83,8 +83,8 @@ gwbackupy \
   gmail restore \
   --add-label "backup-restore-1231" \
   --add-label "more-restore-label" \
-  --filter-date-from <date or datetime> \
-  --filter-date-to <date or datetime> \
+  --filter-date-from <date or datetime eg. "2023-01-01"> \
+  --filter-date-to <date or datetime eg. "2023-02-02 03:00:00"> \
   --restore-deleted \
   --email <source backup mailbox email address> \
   --to-email <destination mailbox email address> # If you want to a different destination account
