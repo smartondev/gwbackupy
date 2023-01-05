@@ -9,7 +9,7 @@ import tempfile
 import threading
 import time
 import collections
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -253,7 +253,7 @@ class Gmail:
                 return
             logging.exception(f'{message_id} {e}')
 
-    def __get_all_messages_from_server(self, email=None):
+    def __get_all_messages_from_server(self, email: str | None = None, q: str | None = 'label:all'):
         if email is None:
             email = self.email
         service = self.__get_service(email)
@@ -267,7 +267,7 @@ class Gmail:
                 logging.debug(f'Loading {page}. from server...')
                 # print('.', end='')
                 data = service.users().messages() \
-                    .list(userId='me', pageToken=next_page_token, maxResults=1000, q='label:all').execute()
+                    .list(userId='me', pageToken=next_page_token, maxResults=1000, q=q).execute()
                 logging.debug(f'{page} successfully loaded')
                 # print(data)
                 # exit(-1)
@@ -335,7 +335,7 @@ class Gmail:
             return True
         return self.storage.put(link, data)
 
-    def backup(self) -> bool:
+    def backup(self, quick_sync_days: int | None = None) -> bool:
         logging.info(f'Starting backup for {self.email}')
         self.__error_count = 0
 
@@ -350,6 +350,10 @@ class Gmail:
         if not self.__backup_labels(labels_link):
             logging.error('Backup finished with storing labels failed')
             return False
+        if quick_sync_days is not None and quick_sync_days < 1:
+            quick_sync_days = None
+        if quick_sync_days is not None:
+            logging.info(f'Quick syncing, going back {quick_sync_days} days')
 
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: l.id() not in Gmail.object_ids_special and (l.is_metadata() or l.is_object()),
@@ -367,7 +371,11 @@ class Gmail:
                 logging.log(global_properties.log_finest, f'{message_id} is usable from backup storage')
         logging.info(f'Stored messages: {len(stored_messages)}')
 
-        messages_from_server = self.__get_all_messages_from_server()
+        q = 'label:all'
+        if quick_sync_days is not None:
+            date = datetime.now() - timedelta(days=quick_sync_days)
+            q = f"label:all after:{date.strftime('%Y/%m/%d')}"
+        messages_from_server = self.__get_all_messages_from_server(q=q)
         logging.info('Processing...')
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in messages_from_server:
@@ -379,29 +387,31 @@ class Gmail:
             logging.error('Backup failed with ' + str(self.__error_count) + ' errors')
             return False
 
-        logging.info('Mark as deletes...')
-        for message_id in stored_messages:
-            links = stored_messages[message_id]
-            logging.debug(f'{message_id} mark as deleted in local storage...')
-            meta_link = links.get(0)
-            if meta_link is None:
-                continue
-            logging.debug(f'{message_id} - {meta_link}')
-            if self.__storage_remove(meta_link):
-                logging.debug(f'{message_id} metadata mark as deleted successfully')
-                message_link = links.get(1)
-                if message_link is None:
-                    logging.info(f'{message_id} marked as deleted')
-                else:
-                    if self.__storage_remove(message_link):
-                        logging.debug(f'{message_id} object mark as deleted successfully')
+        if quick_sync_days is None:
+            logging.info('Mark as deletes...')
+            for message_id in stored_messages:
+                links = stored_messages[message_id]
+                logging.debug(f'{message_id} mark as deleted in local storage...')
+                meta_link = links.get(0)
+                if meta_link is None:
+                    continue
+                logging.debug(f'{message_id} - {meta_link}')
+                if self.__storage_remove(meta_link):
+                    logging.debug(f'{message_id} metadata mark as deleted successfully')
+                    message_link = links.get(1)
+                    if message_link is None:
                         logging.info(f'{message_id} marked as deleted')
                     else:
-                        logging.error(f'{message_id} object mark as deleted fail')
-            else:
-                logging.error(f'{message_id} mark as deleted failed')
-
-        logging.info('Mark as deleted: complete')
+                        if self.__storage_remove(message_link):
+                            logging.debug(f'{message_id} object mark as deleted successfully')
+                            logging.info(f'{message_id} marked as deleted')
+                        else:
+                            logging.error(f'{message_id} object mark as deleted fail')
+                else:
+                    logging.error(f'{message_id} mark as deleted failed')
+            logging.info('Mark as deleted: complete')
+        else:
+            logging.info('Quick syncing mode, skip deletion for locale storage')
         logging.info(f'Backup finished for {self.email}')
         return True
 
