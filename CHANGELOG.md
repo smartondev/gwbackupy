@@ -2,6 +2,8 @@
 
 ## DEV
 
+## 0.5.0
+
 **Local file Storage BC break**
 
 - Enh: temporary file based creation for minimize invalid files states
