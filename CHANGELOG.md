@@ -10,6 +10,7 @@
 - Enh #9: Dry mode
 - Enh: Cleaner log messages
 - Enh #12: OAUTH supports for free plans
+- Enh #18: Quick syncing gmail backup mode
 
 ## 0.4.0
 

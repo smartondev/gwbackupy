@@ -47,6 +47,10 @@ def parse_arguments():
 
     gmail_backup_parser = gmail_command_parser.add_parser('backup', help='Backup gmail')
     gmail_backup_parser.add_argument('--email', type=str, help='Email of the account', required=True)
+    gmail_backup_parser.add_argument('--quick-sync-days', type=int,
+                                     default=None,
+                                     help='Quick sync number of days back. (It does not delete messages from local '
+                                          'storage.)')
 
     gmail_restore_parser = gmail_command_parser.add_parser('restore', help='Restore gmail')
     gmail_restore_parser.add_argument('--email', type=str, help='Email from which restore', required=True)
@@ -91,7 +95,7 @@ def cli_startup():
                           storage=storage,
                           dry_mode=args.dry)
             if args.command == 'backup':
-                if gmail.backup():
+                if gmail.backup(quick_sync_days=args.quick_sync_days):
                     exit(0)
                 else:
                     exit(1)
