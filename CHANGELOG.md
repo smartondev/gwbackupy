@@ -9,6 +9,7 @@
 - Enh #13: Self managed versioned file storage with extendable custom storage interface (eg. for database)
 - Enh #9: Dry mode
 - Enh: Cleaner log messages
+- Enh #12: OAUTH supports for free plans
 
 ## 0.4.0
 
