@@ -18,13 +18,22 @@ Currently only `gmail` is supported.
 
 ### `gmail` service
 
-`backup` parameters
+`... gmail <command> ...`
+
+#### `backup` command
 
 | parameter           | type   | description                                                                                                    |
 |---------------------|--------|----------------------------------------------------------------------------------------------------------------|
 | `--email`           | string | email account for backup (REQUIRED)                                                                            |
 | `--quick-sync-days` | int    | Quick syncing mode. The value is number of retroactive days. (It does not delete messages from local storage.) |
 
-`restore` parameters
+#### `restore` command
 
-...
+| parameter            | type             | description                                                                                                   |
+|----------------------|------------------|---------------------------------------------------------------------------------------------------------------|
+| `--email`            | string           | email account for restore (REQUIRED)                                                                          |
+| `--to-email`         | string           | email account to restore                                                                                      |
+| `--restore-deleted`  |                  | Restore deleted message (The message has been marked as deleted in the local storage.)                        |
+| `--restore-missing`  |                  | Restore missing message (The backup has not been run before, but the message no longer exists on the server.) |
+| `--filter-date-from` | date or datetime | Filter message from date, e.g. "2023-01-01" or "2023-01-01 05:33:00"                                          |
+| `--filter-date-to`   | date or datetime | Filter message from to, e.g. "2023-01-01" or "2023-01-01 05:33:00"                                            |

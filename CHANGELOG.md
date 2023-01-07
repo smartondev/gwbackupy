@@ -2,6 +2,8 @@
 
 ## DEV
 
+- Enh #22: restore missing Gmail messages (`--restore-missing`)
+
 ## 0.5.0
 
 **Local file Storage BC break**
