@@ -60,6 +60,8 @@ def parse_arguments():
                                       help='Add label to restored emails', default=None, dest='add_labels')
     gmail_restore_parser.add_argument('--restore-deleted', help='Restore deleted emails',
                                       default=False, action='store_true')
+    gmail_restore_parser.add_argument('--restore-missing', help='Restore missing emails',
+                                      default=False, action='store_true')
     gmail_restore_parser.add_argument('--filter-date-from', type=str,
                                       help='Filter date from (inclusive, format: yyyy-mm-dd or yyyy-mm-dd hh:mm:ss)',
                                       default=None)
@@ -106,6 +108,9 @@ def cli_startup():
                 if args.restore_deleted:
                     item_filter.is_deleted()
                     logging.info("Filter options: deleted")
+                if args.restore_missing:
+                    item_filter.is_missing()
+                    logging.info("Filter options: missing")
                 if args.filter_date_from is not None:
                     dt = parse_date(args.filter_date_from, args.timezone)
                     item_filter.date_from(dt)
@@ -117,6 +122,7 @@ def cli_startup():
                 if gmail.restore(to_email=args.to_email,
                                  item_filter=item_filter,
                                  restore_deleted=args.restore_deleted,
+                                 restore_missing=args.restore_missing,
                                  add_labels=args.add_labels,
                                  ):
                     exit(0)

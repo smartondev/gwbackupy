@@ -557,8 +557,7 @@ class Gmail:
                 self.__error_count += 1
             logging.exception(f"{restore_message_id} Exception: {e}")
 
-    def __restore_load_labels(self, links: LinkList[LinkInterface]) -> dict[str, dict[str, any]] | None:
-        # TODO add date filtering for max mutation
+    def __load_labels_from_storage(self, links: LinkList[LinkInterface]) -> dict[str, dict[str, any]] | None:
         logging.info(f'Loading labels...')
         labels_links: dict[str, LinkInterface] = links.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata,
@@ -581,11 +580,15 @@ class Gmail:
         logging.info(f'Labels loaded successfully ({len(result)})')
         return result
 
-    def restore(self, item_filter: FilterInterface, to_email=None,
-                restore_deleted=False, add_labels=None):
+    def restore(self, item_filter: FilterInterface, to_email: str | None = None,
+                restore_deleted: bool = False, add_labels: list[str] | None = None, restore_missing: bool = False):
         self.__error_count = 0
         if to_email is None:
             to_email = self.email
+
+        if not restore_deleted and not restore_missing:
+            logging.warning('Tasks not found, see more e.g. --restore-deleted')
+            return True
 
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
@@ -595,7 +598,7 @@ class Gmail:
             g=lambda l: [l.get_properties().get('email', '')]
         )
 
-        latest_labels_from_storage = self.__restore_load_labels(stored_data_all)
+        latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
             logging.error('Stored labels loading failed')
             return False
@@ -613,7 +616,7 @@ class Gmail:
         if self.email == to_email:
             messages_from_server_dest_email = self.__get_all_messages_from_server()
 
-        logging.info("Upload messages...")
+        logging.info('Filtering messages...')
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: l.id() not in Gmail.object_ids_special and (
                     l.is_metadata() or l.is_object()) and item_filter.match({
@@ -623,15 +626,15 @@ class Gmail:
             }),
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1])
         del stored_data_all
+        for message_id in list(stored_messages.keys()):
+            if stored_messages[message_id].get(0) is None or stored_messages[message_id].get(1) is None:
+                # no metadata or no object
+                del stored_messages[message_id]
 
-        if restore_deleted is not True:
-            logging.warning('Tasks not found, see more eg. --restore-deleted')
-            return True
-
+        logging.info(f'Number of potentially affected messages: {len(stored_messages)}')
+        logging.info("Upload messages...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size) as executor:
             for message_id in stored_messages:
-                if stored_messages[message_id].get(0) is None or stored_messages[message_id].get(1) is None:
-                    continue
                 executor.submit(self.__restore_message, message_id, stored_messages[message_id], to_email,
                                 latest_labels_from_storage,
                                 labels_from_server,
