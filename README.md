@@ -20,7 +20,7 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 - designed only for gmail messages
 - only supports IMAP protocol (slow and limited speed)
 
-## Functionality
+## Details
 
 - Run from CLI or run directly from python code
 - Authentication
@@ -56,7 +56,9 @@ storages are not considered as paid plans*
 
 The easiest way for installing:
 
-`pip install gwbackupy`
+```bash
+pip install gwbackupy
+```
 
 ## Instructions
 
