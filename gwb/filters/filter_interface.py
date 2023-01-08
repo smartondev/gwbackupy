@@ -5,7 +5,6 @@ import tzlocal
 
 
 class FilterInterface:
-
     def __init__(self):
         pass
 

@@ -1,8 +1,9 @@
 # gwbackupy: Google Workspace™ backup and restore solution.
 
-![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)
-![0.2.0](https://img.shields.io/pypi/v/gwbackupy)
-![BSD-3-Clause](https://img.shields.io/github/license/smartondev/gwbackupy)
+[![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)](https://github.com/smartondev/gwbackupy/releases)
+[![0.2.0](https://img.shields.io/pypi/v/gwbackupy)](https://pypi.org/project/gwbackupy/)
+[![BSD-3-Clause](https://img.shields.io/github/license/smartondev/gwbackupy)](LICENSE)
+[![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 ## What is it?
 

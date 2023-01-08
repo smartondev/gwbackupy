@@ -8,7 +8,6 @@ from gwb.storage.storage_interface import LinkInterface
 
 
 class GmailFilter(FilterInterface):
-
     def __init__(self):
         super().__init__()
         self.__date_from: Union[datetime, None] = None
@@ -30,7 +29,7 @@ class GmailFilter(FilterInterface):
 
     def match(self, d: any) -> bool:
         d: dict[str, any]
-        link: LinkInterface = d['link']
+        link: LinkInterface = d["link"]
         if link.is_object():
             return True
 
@@ -51,7 +50,7 @@ class GmailFilter(FilterInterface):
             # deleted
             return True
         if self.__is_missing:
-            ids_from_server: dict[str, any] = d['server-data']
+            ids_from_server: dict[str, any] = d["server-data"]
             if link.id() not in ids_from_server:
                 # missing
                 return True
