@@ -63,7 +63,12 @@ pip install gwbackupy
 
 ## Instructions
 
+- [GCP OAUTH access setup](docs/oauth-setup.md)
+
+  *For free Gmail plan or paid Google Worspace plans*
 - [GCP Service Account Setup](docs/service-account-setup.md)
+
+  *Only for paid Google Worspace plans*
 
 ## Usage
 

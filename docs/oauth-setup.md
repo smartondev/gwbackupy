@@ -1,6 +1,8 @@
-# Service Account Setup
 
-**This solution can only be used for google workspace paid plans.**
+# OAUTH setup
+
+This solution can be used for both gmail free and Google workspace paid plans.
+*Not recommended for paid plans.*
 
 ## 1. Register to Google Cloud
 
@@ -13,6 +15,3 @@ If you do not have an account yet, here is the description: [Registering to GCP]
 You can enable the APIs for the services you want to use based on this description:
 [Enable APIs on GCP](enable-gcp-apis.md)
 
-## 4. Generate key file for service account
-
-...
