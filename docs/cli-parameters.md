@@ -37,3 +37,8 @@ Currently only `gmail` is supported.
 | `--restore-missing`  |                  | Restore missing message (The backup has not been run before, but the message no longer exists on the server.) |
 | `--filter-date-from` | date or datetime | Filter message from date, e.g. "2023-01-01" or "2023-01-01 05:33:00"                                          |
 | `--filter-date-to`   | date or datetime | Filter message from to, e.g. "2023-01-01" or "2023-01-01 05:33:00"                                            |
+
+*deleted vs missing: The missing message meanłs that the message exists in the local storage,
+but no longer on the server, but the backup has not been run yet, so its status has not been deleted.
+The deleted message when the backup detected the deletion of the message
+on the server and marked it in the local storage.*
