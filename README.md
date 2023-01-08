@@ -4,6 +4,7 @@
 [![0.2.0](https://img.shields.io/pypi/v/gwbackupy)](https://pypi.org/project/gwbackupy/)
 [![BSD-3-Clause](https://img.shields.io/github/license/smartondev/gwbackupy)](LICENSE)
 [![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Coverage Status](https://coveralls.io/repos/github/smartondev/gwbackupy/badge.svg?branch=main)](https://coveralls.io/github/smartondev/gwbackupy?branch=main)
 
 ## What is it?
 
