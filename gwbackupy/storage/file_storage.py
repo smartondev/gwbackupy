@@ -10,7 +10,7 @@ from builtins import float
 from datetime import datetime, timezone
 from typing import IO
 
-from gwb.storage.storage_interface import (
+from gwbackupy.storage.storage_interface import (
     StorageInterface,
     Path,
     Data,

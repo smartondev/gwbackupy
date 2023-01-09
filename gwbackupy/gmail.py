@@ -18,16 +18,16 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from oauth2client.service_account import ServiceAccountCredentials
 
-from gwb import global_properties
-from gwb.filters.filter_interface import FilterInterface
-from gwb.helpers import (
+from gwbackupy import global_properties
+from gwbackupy.filters.filter_interface import FilterInterface
+from gwbackupy.helpers import (
     decode_base64url,
     encode_base64url,
     str_trim,
     json_load,
     is_rate_limit_exceeded,
 )
-from gwb.storage.storage_interface import (
+from gwbackupy.storage.storage_interface import (
     StorageInterface,
     LinkList,
     LinkInterface,

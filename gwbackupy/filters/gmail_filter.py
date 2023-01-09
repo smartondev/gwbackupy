@@ -3,8 +3,8 @@ from typing import Union
 
 import tzlocal
 
-from gwb.filters.filter_interface import FilterInterface
-from gwb.storage.storage_interface import LinkInterface
+from gwbackupy.filters.filter_interface import FilterInterface
+from gwbackupy.storage.storage_interface import LinkInterface
 
 
 class GmailFilter(FilterInterface):

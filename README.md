@@ -60,6 +60,16 @@ The easiest way for installing:
 
 ```bash
 pip install gwbackupy
+# and run...
+gwbackupy ...
+```
+
+or
+
+```bash
+pip install -r requirements.txt
+# and run...
+python3 -m gwbackupy ...
 ```
 
 ## Instructions
@@ -106,8 +116,8 @@ gwbackupy \
 Backup run from python code:
 
 ```python
-from gwb.gmail import Gmail
-from gwb.storage.file_storage import FileStorage
+from gwbackupy.gmail import Gmail
+from gwbackupy.storage.file_storage import FileStorage
 
 storage = FileStorage('./data/email@example.co')
 gmail = Gmail(email='email@example.com',
@@ -115,9 +125,9 @@ gmail = Gmail(email='email@example.com',
               batch_size=3,
               storage=storage)
 if gmail.backup():
-    print('Yeah!')
+  print('Yeah!')
 else:
-    print(':(')
+  print(':(')
 ```
 
 ## Contributing

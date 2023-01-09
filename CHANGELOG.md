@@ -2,6 +2,7 @@
 
 ## DEV
 
+- Enh: namespace refactoring `gwb` -> `gwbackupy`
 - Enh #22: restore missing Gmail messages (`--restore-missing`)
 
 ## 0.5.0
