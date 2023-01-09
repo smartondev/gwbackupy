@@ -5,12 +5,12 @@ import sys
 from tzlocal import get_localzone
 import pytz as pytz
 
-import gwb.global_properties as global_properties
-from gwb.filters.gmail_filter import GmailFilter
+import gwbackupy.global_properties as global_properties
+from gwbackupy.filters.gmail_filter import GmailFilter
 
-from gwb.gmail import Gmail
-from gwb.helpers import parse_date
-from gwb.storage.file_storage import FileStorage
+from gwbackupy.gmail import Gmail
+from gwbackupy.helpers import parse_date
+from gwbackupy.storage.file_storage import FileStorage
 
 lock = threading.Lock()
 
