@@ -19,7 +19,8 @@ jobs:
       - run:
           name: Install and Run
           command: 'pip install -r requirements.txt && python -m coverage run --source=gwbackupy setup.py test'
-      - coveralls/upload
+      - coveralls/upload:
+          path_to_lcov: ./coverage/lcov.info
   build-and-test:
     docker:
       - image: cimg/python:3.10.5
