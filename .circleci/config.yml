@@ -17,8 +17,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Install and Make
-          command: pip install .
+          name: Install and Run
+          command: pip install . && coverage run --source=gwbackupy setup.py test
       - coveralls/upload
   build-and-test:
     docker:
