@@ -8,8 +8,7 @@
 
 ## What is it?
 
-[Google Workspace™](https://workspace.google.com/) backup and restore solution.
-Gwbackupy is open source and written in python.
+Gwbackupy is a open source [Google Workspace™](https://workspace.google.com/) backup and restore solution, written in python.
 
 *Currently supported Gmail messages and labels only.*
 
