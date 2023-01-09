@@ -34,3 +34,4 @@ Thumbs.db
 /gwbackupy.egg-info
 /dist
 /env
+.pytest_cache
