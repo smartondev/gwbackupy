@@ -8,18 +8,19 @@ workflows:
   testing:
     jobs:
       - build-and-test
-      - build
+      - coveralls-build
 
 jobs:
-  build:
+  coveralls-build:
     docker:
-      - image: 'circleci/node:10.0.0'
+      - image: circleci/python:3.10-node
     steps:
       - checkout
       - run:
           name: Install and Run
-          command: pip install . && coverage run --source=gwbackupy setup.py test
-      - coveralls/upload
+          command: 'pip install -r requirements.txt && python -m coverage run --source=gwbackupy setup.py test && coverage-lcov'
+      - coveralls/upload:
+          path_to_lcov: ./lcov.info
   build-and-test:
     docker:
       - image: cimg/python:3.10.5
