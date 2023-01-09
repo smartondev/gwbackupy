@@ -35,4 +35,3 @@ Thumbs.db
 /dist
 /env
 .pytest_cache
-.coverage
