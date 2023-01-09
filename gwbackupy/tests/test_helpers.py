@@ -10,3 +10,4 @@ def test_str_trim():
 
 def test_decode_base64url():
     assert decode_base64url("YQ") == b"a"
+    assert decode_base64url("YjY0") == b"b64"
