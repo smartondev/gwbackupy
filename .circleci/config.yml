@@ -2,13 +2,24 @@ version: 2.1
 
 orbs:
   python: circleci/python@2.1.1
+  coveralls: coveralls/coveralls@1.0.6
 
 workflows:
   testing:
     jobs:
       - build-and-test
+      - build
 
 jobs:
+  build:
+    docker:
+      - image: 'circleci/node:10.0.0'
+    steps:
+      - checkout
+      - run:
+          name: Install and Make
+          command: pip install .
+      - coveralls/upload
   build-and-test:
     docker:
       - image: cimg/python:3.10.5
