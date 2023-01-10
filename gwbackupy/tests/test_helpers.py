@@ -58,6 +58,7 @@ class Resp:
 
 
 def test_is_rate_limit_exceeded():
+    assert not is_rate_limit_exceeded(Exception("error"))
     data = [
         {
             "error": {
@@ -81,5 +82,9 @@ def test_is_rate_limit_exceeded():
     assert not is_rate_limit_exceeded(e)
     data2 = copy.deepcopy(data)
     data2[0]["error"]["details"][0]["reason"] = "-"
+    e = HttpError(Resp(403, "Forbidden"), json.dumps(data2).encode("utf8"))
+    assert not is_rate_limit_exceeded(e)
+    data2 = copy.deepcopy(data)
+    data2[0]["error"]["details"].append(dict())
     e = HttpError(Resp(403, "Forbidden"), json.dumps(data2).encode("utf8"))
     assert not is_rate_limit_exceeded(e)
