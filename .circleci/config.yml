@@ -18,7 +18,7 @@ jobs:
       - checkout
       - run:
           name: Install and run coverage tests
-          command: 'pip install -r test-requirements.txt && coverage run -a --source=gwbackupy setup.py test && coverage run -a -m pytest gwbackupy && coverage-lcov && echo 1'
+          command: 'pip install -r dev-requirements.txt && coverage run -a --source=gwbackupy setup.py test && coverage run -a -m pytest gwbackupy && coverage-lcov && echo 1'
       - coveralls/upload:
           path_to_lcov: lcov.info
   build-and-test:
@@ -27,6 +27,7 @@ jobs:
     steps:
       - checkout
       - python/install-packages:
+          pip-dependency-file: dev-requirements.txt
           pkg-manager: pip
       - run:
           name: Run tests
