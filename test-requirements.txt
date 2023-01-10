@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest~=7.2
+coveralls~=3.3
+coverage-lcov~=0.2.4

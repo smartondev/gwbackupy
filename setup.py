@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 requires = []
-with open("run-requirements.txt", "r") as fh:
+with open("requirements.txt", "r") as fh:
     for line in fh.readlines():
         requires.append(line.strip())
 
