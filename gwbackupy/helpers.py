@@ -28,13 +28,13 @@ def encode_base64url(data):
 
 
 def parse_date(date: str, tz: tzlocal) -> datetime:
+    tzs = datetime.now().astimezone(tz).strftime("%z")
+    df = "%Y-%m-%d %H:%M:%S %z"
     try:
-        return datetime.strptime(date, "%Y-%m-%d %H:%M:%S").astimezone(tz)
+        return datetime.strptime(f"{date} {tzs}", df).astimezone(tz)
     except ValueError:
         try:
-            return datetime.strptime(
-                f"{date} 00:00:00", "%Y-%m-%d %H:%M:%S"
-            ).astimezone(tz)
+            return datetime.strptime(f"{date} 00:00:00 {tzs}", df).astimezone(tz)
         except ValueError:
             raise ValueError(f"Date time parsing failed: {date}")
 
@@ -44,8 +44,6 @@ def json_load(io: IO[bytes]) -> list[any] | dict[str, any] | None:
         return json.load(io)
     except JSONDecodeError as e:
         logging.exception(f"Invalid JSON format: {e}")
-    except BaseException as e:
-        logging.exception(f"JSON load error: {e}")
     return None
 
 

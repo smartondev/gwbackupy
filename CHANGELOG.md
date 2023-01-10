@@ -4,6 +4,7 @@
 
 - Enh: namespace refactoring `gwb` -> `gwbackupy`
 - Enh #22: restore missing Gmail messages (`--restore-missing`)
+- Bug: fixed date filters parsing
 
 ## 0.5.0
 
