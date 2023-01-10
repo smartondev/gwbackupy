@@ -12,7 +12,7 @@ with open("requirements.txt", "r") as fh:
 setup(
     name="gwbackupy",
     version=global_properties.version,
-    packages=["gwbackupy", "gwbackupy.storage", "gwbackupy.filters"],
+    packages=["gwbackupy", "gwbackupy.storage", "gwbackupy.filters", "gwbackupy.providers"],
     url="https://github.com/smartondev/gwbackupy",
     license='BSD 3-Clause "New" or "Revised" License',
     author="Márton Somogyi",
