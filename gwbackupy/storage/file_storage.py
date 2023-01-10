@@ -146,6 +146,19 @@ class FileLink(LinkInterface):
     def __repr__(self) -> str:
         return f"{self.__class__}#id:{self.id()},props:{self.__properties},path:{self.__path}"
 
+    def __eq__(self, other):
+        if not isinstance(other, FileLink):
+            return False
+        if self.id() != other.id():
+            return False
+        if self.get_properties() != other.get_properties():
+            return False
+        if self.__path != other.__path:
+            return False
+        if self.__extension != other.__extension:
+            return False
+        return True
+
 
 class FileStorage(StorageInterface):
     def __init__(self, root: str):
