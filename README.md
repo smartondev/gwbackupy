@@ -117,26 +117,26 @@ Backup run from python code:
 ```python
 from gwbackupy.gmail import Gmail
 from gwbackupy.storage.file_storage import FileStorage
-from gwbackupy.providers.google_api_service_provider import GoogleApiServiceProvider
+from gwbackupy.providers.gapi_service_provider import GoogleApiServiceProvider
 
 storage = FileStorage('./data/email@example.co')
 service_provider = GoogleApiServiceProvider(
-    "gmail",
-    "v1",
-    [
-        "https://mail.google.com/",
-    ],
-    service_account_file_path='serviceacc.json',
-    storage=storage,
+  "gmail",
+  "v1",
+  [
+    "https://mail.google.com/",
+  ],
+  service_account_file_path='serviceacc.json',
+  storage=storage,
 )
 gmail = Gmail(email='email@example.com',
               service_provider=service_provider,
               batch_size=3,
               storage=storage)
 if gmail.backup():
-    print('Yeah!')
+  print('Yeah!')
 else:
-    print(':(')
+  print(':(')
 ```
 
 ## Contributing

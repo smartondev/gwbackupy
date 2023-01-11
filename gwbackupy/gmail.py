@@ -18,9 +18,10 @@ from gwbackupy.helpers import (
     encode_base64url,
     str_trim,
     json_load,
-    is_rate_limit_exceeded,
 )
-from gwbackupy.providers.google_api_service_provider import GoogleApiServiceProvider
+from gwbackupy.providers.gmail_service_wrapper_interface import (
+    GmailServiceWrapperInterface,
+)
 from gwbackupy.providers.service_provider_interface import ServiceProviderInterface
 from gwbackupy.storage.storage_interface import (
     StorageInterface,
@@ -41,6 +42,7 @@ class Gmail:
         email: str,
         storage: StorageInterface,
         service_provider: ServiceProviderInterface,
+        service_wrapper: GmailServiceWrapperInterface,
         batch_size: int = 10,
         labels: list[str] | None = None,
         dry_mode: bool = False,
@@ -54,6 +56,7 @@ class Gmail:
         self.__lock = threading.RLock()
         self.__services = {}
         self.__error_count = 0
+        self.__service_wrapper = service_wrapper
         if labels is None:
             labels = []
         self.labels = labels
@@ -62,43 +65,18 @@ class Gmail:
     def __get_local_messages_latest_mutations_only(self):
         pass
 
-    def __get_message_from_server(
-        self, message_id, message_format="raw", try_count=5, sleep=10, email=None
-    ):
+    def __get_message_from_server(self, message_id, message_format="raw", email=None):
         if email is None:
             email = self.email
         logging.debug(
             f"{message_id} download from server with format: {message_format}"
         )
-        for i in range(try_count):
-            with self.__service_provider.get_service(email) as service:
-                try:
-                    result = (
-                        service.users()
-                        .messages()
-                        .get(userId="me", id=message_id, format=message_format)
-                        .execute()
-                    )
-                    logging.debug(f"{message_id} successfully downloaded")
-                    return result
-                except HttpError as e:
-                    if e.status_code == 404:
-                        logging.debug(f"{message_id} message not found")
-                        # message not found
-                        return None
-                    if i == try_count - 1:
-                        # last try
-                        logging.error(f"{message_id} message download failed")
-                        raise e
-                    if not is_rate_limit_exceeded(e):
-                        logging.exception(f"HTTP error")
-                    else:
-                        logging.warning(f"{message_id} Rate limit exceeded")
-                    logging.info(f"{message_id} Wait {sleep} seconds and retry..")
-                    time.sleep(sleep)
-                    continue
-                except Exception:
-                    raise
+        with self.__service_provider.get_service(email) as service:
+            result = self.__service_wrapper.get_message(
+                service, message_id, message_format
+            )
+            logging.debug(f"{message_id} successfully downloaded")
+            return result
 
     def __store_message_file(
         self, message_id: str, raw_message: bytes, create_timestamp: float
@@ -200,32 +178,8 @@ class Gmail:
             email = self.email
         with self.__service_provider.get_service(email) as service:
             logging.info("Get all message ids from server...")
-            messages = {}
-            count = 0
-            next_page_token = None
-            page = 1
-            while True:
-                logging.debug(f"Loading page {page}. from server...")
-                data = (
-                    service.users()
-                    .messages()
-                    .list(userId="me", pageToken=next_page_token, maxResults=1000, q=q)
-                    .execute()
-                )
-                next_page_token = data.get("nextPageToken", None)
-                page_message_count = len(data.get("messages", []))
-                logging.debug(
-                    f"Page {page} successfully loaded (messages count: {page_message_count} / next page token: {next_page_token})"
-                )
-                # print(data)
-                # exit(-1)
-                count = count + page_message_count
-                for message in data.get("messages", []):
-                    messages[message.get("id")] = message
-                page += 1
-                if data.get("nextPageToken") is None:
-                    break
-            logging.info("Message(s) count: " + str(count))
+            messages = self.__service_wrapper.get_messages(service, q)
+            logging.info(f"Message(s) count: len({len(messages)}")
             # print(count)
             # print(messages)
             return messages
@@ -235,8 +189,7 @@ class Gmail:
             email = self.email
         logging.info(f"Getting labels from server ({email})")
         with self.__service_provider.get_service(email) as service:
-            response = service.users().labels().list(userId="me").execute()
-            return response.get("labels", [])
+            return self.__service_wrapper.get_labels(service)
 
     def __backup_labels(self, link: LinkInterface | None) -> bool:
         logging.info("Backing up labels...")

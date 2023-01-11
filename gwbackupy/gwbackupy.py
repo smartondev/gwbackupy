@@ -10,7 +10,8 @@ from gwbackupy.filters.gmail_filter import GmailFilter
 
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import parse_date
-from gwbackupy.providers.google_api_service_provider import GoogleApiServiceProvider
+from gwbackupy.providers.gapi_gmail_service_wrapper import GapiGmailServiceWrapper
+from gwbackupy.providers.gapi_service_provider import GoogleApiServiceProvider
 from gwbackupy.storage.file_storage import FileStorage
 
 lock = threading.Lock()
@@ -170,9 +171,11 @@ def cli_startup():
                 service_account_file_path=args.service_account_key_filepath,
                 storage=storage,
             )
+            service_wrapper = GapiGmailServiceWrapper()
             gmail = Gmail(
                 email=args.email,
                 service_provider=service_provider,
+                service_wrapper=service_wrapper,
                 batch_size=args.batch_size,
                 storage=storage,
                 dry_mode=args.dry,
