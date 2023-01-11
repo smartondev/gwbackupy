@@ -117,10 +117,10 @@ Backup run from python code:
 ```python
 from gwbackupy.gmail import Gmail
 from gwbackupy.storage.file_storage import FileStorage
-from gwbackupy.providers.gapi_service_provider import GoogleApiServiceProvider
+from gwbackupy.providers.gapi_service_provider import GapiServiceProvider
 
 storage = FileStorage('./data/email@example.co')
-service_provider = GoogleApiServiceProvider(
+service_provider = GapiServiceProvider(
   "gmail",
   "v1",
   [

@@ -12,7 +12,10 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
 
-from gwbackupy.providers.service_provider_interface import ServiceProviderInterface
+from gwbackupy.providers.service_provider_interface import (
+    ServiceProviderInterface,
+    ServiceItem,
+)
 from gwbackupy.storage.storage_interface import (
     LinkInterface,
     StorageInterface,
@@ -20,25 +23,7 @@ from gwbackupy.storage.storage_interface import (
 )
 
 
-class ServiceItem:
-    def __init__(self, provider: GoogleApiServiceProvider, email: str, service):
-        self.__provider = provider
-        self.__service = service
-        self.__email = email
-
-    def __enter__(self):
-        if not self.__service:
-            raise ValueError(f"Service is released ({self.__email})")
-        return self.__service
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        try:
-            self.__provider.release_service(self.__email, self.__service)
-        finally:
-            self.__service = None
-
-
-class GoogleApiServiceProvider(ServiceProviderInterface):
+class GapiServiceProvider(ServiceProviderInterface):
     object_id_token = LinkInterface.id_special_prefix + "token--"
 
     def __init__(
@@ -51,11 +36,9 @@ class GoogleApiServiceProvider(ServiceProviderInterface):
         service_account_email: str | None = None,
         storage: StorageInterface | None = None,
     ):
-        super().__init__(
-            service_name,
-            version,
-            scopes,
-        )
+        self.service_name = service_name
+        self.version = version
+        self.scopes = scopes
         self.credentials_file_path = credentials_file_path
         self.service_account_file_path = service_account_file_path
         self.service_account_email = service_account_email
@@ -100,7 +83,7 @@ class GoogleApiServiceProvider(ServiceProviderInterface):
 
     def set_storage_links(self, links: LinkList[LinkInterface]):
         self.credentials_token_links = links.find(
-            f=lambda l: l.id() == GoogleApiServiceProvider.object_id_token,
+            f=lambda l: l.id() == GapiServiceProvider.object_id_token,
             g=lambda l: [l.get_properties().get("email", "")],
         )
 
@@ -159,7 +142,7 @@ class GoogleApiServiceProvider(ServiceProviderInterface):
                 credentials = flow.run_local_server(port=0)
 
             token_link_new = self.storage.new_link(
-                GoogleApiServiceProvider.object_id_token, "json"
+                GapiServiceProvider.object_id_token, "json"
             )
             token_link_new.set_properties({"email": email_md5})
             logging.debug(f"Put token to storage ({token_link_new})")
