@@ -116,9 +116,6 @@ class LinkList(list):
 
 
 class StorageInterface:
-    def initialize(self, path: Path):
-        pass
-
     def new_link(
         self,
         object_id: str,

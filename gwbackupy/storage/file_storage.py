@@ -207,9 +207,6 @@ class FileStorage(StorageInterface):
         logging.error(f"File put fail ({file_path})")
         return False
 
-    def initialize(self, path: Path):
-        pass
-
     def remove(self, link: FileLink, as_new_mutation: bool = True) -> bool:
         if not as_new_mutation:
             try:
