@@ -41,7 +41,6 @@ class Gmail:
         self,
         email: str,
         storage: StorageInterface,
-        service_provider: ServiceProviderInterface,
         service_wrapper: GmailServiceWrapperInterface,
         batch_size: int = 10,
         labels: list[str] | None = None,
@@ -60,7 +59,6 @@ class Gmail:
         if labels is None:
             labels = []
         self.labels = labels
-        self.__service_provider = service_provider
 
     def __get_local_messages_latest_mutations_only(self):
         pass
@@ -71,12 +69,9 @@ class Gmail:
         logging.debug(
             f"{message_id} download from server with format: {message_format}"
         )
-        with self.__service_provider.get_service(email) as service:
-            result = self.__service_wrapper.get_message(
-                service, message_id, message_format
-            )
-            logging.debug(f"{message_id} successfully downloaded")
-            return result
+        result = self.__service_wrapper.get_message(email, message_id, message_format)
+        logging.debug(f"{message_id} successfully downloaded")
+        return result
 
     def __store_message_file(
         self, message_id: str, raw_message: bytes, create_timestamp: float
@@ -176,20 +171,18 @@ class Gmail:
     ):
         if email is None:
             email = self.email
-        with self.__service_provider.get_service(email) as service:
-            logging.info("Get all message ids from server...")
-            messages = self.__service_wrapper.get_messages(service, q)
-            logging.info(f"Message(s) count: len({len(messages)}")
-            # print(count)
-            # print(messages)
-            return messages
+        logging.info("Get all message ids from server...")
+        messages = self.__service_wrapper.get_messages(email, q)
+        logging.info(f"Message(s) count: len({len(messages)}")
+        # print(count)
+        # print(messages)
+        return messages
 
     def __get_labels_from_server(self, email=None) -> list[dict[str, any]]:
         if email is None:
             email = self.email
         logging.info(f"Getting labels from server ({email})")
-        with self.__service_provider.get_service(email) as service:
-            return self.__service_wrapper.get_labels(service)
+        return self.__service_wrapper.get_labels(email)
 
     def __backup_labels(self, link: LinkInterface | None) -> bool:
         logging.info("Backing up labels...")
@@ -235,7 +228,7 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.__service_provider.set_storage_links(stored_data_all)
+        self.__service_wrapper.get_service_provider().set_storage_links(stored_data_all)
 
         labels_link = stored_data_all.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata
@@ -546,7 +539,7 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.__service_provider.set_storage_links(stored_data_all)
+        self.__service_wrapper.get_service_provider().set_storage_links(stored_data_all)
 
         latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
