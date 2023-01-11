@@ -83,7 +83,6 @@ class GoogleApiServiceProvider(ServiceProviderInterface):
                 service = self.services[email].pop()
             if service is None:
                 logging.debug("Create new service")
-                credentials = None
                 if self.credentials_file_path is not None:
                     credentials = self.__get_credentials_by_oauth(email)
                 elif self.service_account_file_path is not None:
