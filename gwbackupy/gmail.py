@@ -1,22 +1,15 @@
 from __future__ import annotations
 
+import collections
 import concurrent.futures
 import gzip
-import hashlib
 import json
 import logging
-import tempfile
 import threading
 import time
-import collections
 from datetime import datetime, timedelta
 
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from oauth2client.service_account import ServiceAccountCredentials
 
 from gwbackupy import global_properties
 from gwbackupy.filters.filter_interface import FilterInterface
@@ -28,6 +21,7 @@ from gwbackupy.helpers import (
     is_rate_limit_exceeded,
 )
 from gwbackupy.providers.google_api_service_provider import GoogleApiServiceProvider
+from gwbackupy.providers.service_provider_interface import ServiceProviderInterface
 from gwbackupy.storage.storage_interface import (
     StorageInterface,
     LinkList,
@@ -41,26 +35,19 @@ class Gmail:
 
     object_id_labels = "--gwbackupy-labels--"
     """Gmail's special object ID for storing labels"""
-    object_id_token = "--gwbackupy-token--"
 
     def __init__(
-            self,
-            email: str,
-            storage: StorageInterface,
-            service_account_email: str | None = None,
-            service_account_file_path: str | None = None,
-            credentials_file_path: str | None = None,
-            batch_size: int = 10,
-            labels: list[str] | None = None,
-            dry_mode: bool = False,
+        self,
+        email: str,
+        storage: StorageInterface,
+        service_provider: ServiceProviderInterface,
+        batch_size: int = 10,
+        labels: list[str] | None = None,
+        dry_mode: bool = False,
     ):
-        self.credentials_file_path = credentials_file_path
-        self.credentials_token_links: dict[str, LinkInterface] = dict()
         self.dry_mode = dry_mode
         self.email = email
         self.storage = storage
-        self.service_account_email = service_account_email
-        self.service_account_file_path = service_account_file_path
         if batch_size is None or batch_size < 1:
             batch_size = 5
         self.batch_size = batch_size
@@ -70,23 +57,13 @@ class Gmail:
         if labels is None:
             labels = []
         self.labels = labels
-        self.__service_provider = GoogleApiServiceProvider(
-            "gmail",
-            "v1",
-            [
-                "https://mail.google.com/",
-            ],
-            credentials_file_path=self.credentials_file_path,
-            service_account_email=self.service_account_email,
-            service_account_file_path=self.service_account_file_path,
-            storage=storage,
-        )
+        self.__service_provider = service_provider
 
     def __get_local_messages_latest_mutations_only(self):
         pass
 
     def __get_message_from_server(
-            self, message_id, message_format="raw", try_count=5, sleep=10, email=None
+        self, message_id, message_format="raw", try_count=5, sleep=10, email=None
     ):
         if email is None:
             email = self.email
@@ -96,7 +73,6 @@ class Gmail:
         for i in range(try_count):
             with self.__service_provider.get_service(email) as service:
                 try:
-                    # message_id = message_id[:-1] + 'a'
                     result = (
                         service.users()
                         .messages()
@@ -125,7 +101,7 @@ class Gmail:
                     raise
 
     def __store_message_file(
-            self, message_id: str, raw_message: bytes, create_timestamp: float
+        self, message_id: str, raw_message: bytes, create_timestamp: float
     ):
         logging.debug("Store message {id}".format(id=message_id))
         link = self.storage.new_link(
@@ -140,7 +116,7 @@ class Gmail:
             raise Exception("Mail message save failed")
 
     def __backup_messages(
-            self, message, stored_messages: dict[str, dict[int, LinkInterface]]
+        self, message, stored_messages: dict[str, dict[int, LinkInterface]]
     ):
         message_id = message.get("id", "UNKNOWN")  # for logging
         try:
@@ -218,7 +194,7 @@ class Gmail:
             logging.exception(f"{message_id} {e}")
 
     def __get_all_messages_from_server(
-            self, email: str | None = None, q: str | None = "label:all"
+        self, email: str | None = None, q: str | None = "label:all"
     ):
         if email is None:
             email = self.email
@@ -229,19 +205,21 @@ class Gmail:
             next_page_token = None
             page = 1
             while True:
-                logging.debug(f"Loading {page}. from server...")
-                # print('.', end='')
+                logging.debug(f"Loading page {page}. from server...")
                 data = (
                     service.users()
                     .messages()
                     .list(userId="me", pageToken=next_page_token, maxResults=1000, q=q)
                     .execute()
                 )
-                logging.debug(f"{page} successfully loaded")
+                next_page_token = data.get("nextPageToken", None)
+                page_message_count = len(data.get("messages", []))
+                logging.debug(
+                    f"Page {page} successfully loaded (messages count: {page_message_count} / next page token: {next_page_token})"
+                )
                 # print(data)
                 # exit(-1)
-                next_page_token = data.get("nextPageToken", None)
-                count = count + len(data.get("messages", []))
+                count = count + page_message_count
                 for message in data.get("messages", []):
                     messages[message.get("id")] = message
                 page += 1
@@ -304,10 +282,8 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.credentials_token_links = stored_data_all.find(
-            f=lambda l: l.id() == Gmail.object_id_token,
-            g=lambda l: [l.get_properties().get("email", "")],
-        )
+        self.__service_provider.set_storage_links(stored_data_all)
+
         labels_link = stored_data_all.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata
         )
@@ -346,7 +322,7 @@ class Gmail:
         messages_from_server = self.__get_all_messages_from_server(q=q)
         logging.info("Processing...")
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.batch_size
+            max_workers=self.batch_size
         ) as executor:
             for message_id in messages_from_server:
                 executor.submit(
@@ -420,12 +396,12 @@ class Gmail:
                 raise
 
     def __get_restore_label_ids(
-            self,
-            to_email: str,
-            labels_from_storage: dict[str, dict[str, any]],
-            labels_form_server: dict[str, dict[str, any]],
-            add_labels: [str],
-            label_ids_from_message: [str],
+        self,
+        to_email: str,
+        labels_from_storage: dict[str, dict[str, any]],
+        labels_form_server: dict[str, dict[str, any]],
+        add_labels: [str],
+        label_ids_from_message: [str],
     ) -> [str]:
         if self.email != to_email:
             raise NotImplementedError("Not implemented for different emails")
@@ -480,15 +456,15 @@ class Gmail:
             return result
 
     def __restore_message(
-            self,
-            restore_message_id: str,
-            link: dict[int, LinkInterface],
-            to_email: str,
-            labels_from_storage: dict[str, dict[str, any]],
-            labels_form_server: dict[str, dict[str, any]],
-            add_labels: [str],
-            try_count=5,
-            sleep=10,
+        self,
+        restore_message_id: str,
+        link: dict[int, LinkInterface],
+        to_email: str,
+        labels_from_storage: dict[str, dict[str, any]],
+        labels_form_server: dict[str, dict[str, any]],
+        add_labels: [str],
+        try_count=5,
+        sleep=10,
     ):
         try:
             logging.info(f"{restore_message_id} Restoring message...")
@@ -536,8 +512,12 @@ class Gmail:
                             f"{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})"
                         )
                         if self.dry_mode:
-                            logging.info(f"{restore_message_id} DRY MODE insert message")
-                            result = {"id": f"DRYMODE{datetime.utcnow().timestamp():1.3f}"}
+                            logging.info(
+                                f"{restore_message_id} DRY MODE insert message"
+                            )
+                            result = {
+                                "id": f"DRYMODE{datetime.utcnow().timestamp():1.3f}"
+                            }
                         else:
                             result = (
                                 service.users()
@@ -570,7 +550,7 @@ class Gmail:
             logging.exception(f"{restore_message_id} Exception: {e}")
 
     def __load_labels_from_storage(
-            self, links: LinkList[LinkInterface]
+        self, links: LinkList[LinkInterface]
     ) -> dict[str, dict[str, any]] | None:
         logging.info(f"Loading labels...")
         labels_links: dict[str, LinkInterface] = links.find(
@@ -595,12 +575,12 @@ class Gmail:
         return result
 
     def restore(
-            self,
-            item_filter: FilterInterface,
-            to_email: str | None = None,
-            restore_deleted: bool = False,
-            add_labels: list[str] | None = None,
-            restore_missing: bool = False,
+        self,
+        item_filter: FilterInterface,
+        to_email: str | None = None,
+        restore_deleted: bool = False,
+        add_labels: list[str] | None = None,
+        restore_missing: bool = False,
     ):
         self.__error_count = 0
         if to_email is None:
@@ -613,10 +593,7 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.credentials_token_links = stored_data_all.find(
-            f=lambda l: l.id() == Gmail.object_id_token,
-            g=lambda l: [l.get_properties().get("email", "")],
-        )
+        self.__service_provider.set_storage_links(stored_data_all)
 
         latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
@@ -639,8 +616,8 @@ class Gmail:
         logging.info("Filtering messages...")
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: not l.is_special_id()
-                        and (l.is_metadata() or l.is_object())
-                        and item_filter.match(
+            and (l.is_metadata() or l.is_object())
+            and item_filter.match(
                 {
                     "message-id": l.id(),
                     "link": l,
@@ -652,8 +629,8 @@ class Gmail:
         del stored_data_all
         for message_id in list(stored_messages.keys()):
             if (
-                    stored_messages[message_id].get(0) is None
-                    or stored_messages[message_id].get(1) is None
+                stored_messages[message_id].get(0) is None
+                or stored_messages[message_id].get(1) is None
             ):
                 # no metadata or no object
                 del stored_messages[message_id]
@@ -661,7 +638,7 @@ class Gmail:
         logging.info(f"Number of potentially affected messages: {len(stored_messages)}")
         logging.info("Upload messages...")
         with concurrent.futures.ThreadPoolExecutor(
-                max_workers=self.batch_size
+            max_workers=self.batch_size
         ) as executor:
             for message_id in stored_messages:
                 executor.submit(
