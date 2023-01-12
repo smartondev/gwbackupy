@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import io
+from datetime import datetime
 from typing import IO
 
 from gwbackupy.storage.storage_interface import (
@@ -19,6 +21,8 @@ class MockLink(LinkInterface):
     def fill(self, data: dict[str, any]):
         if "id" in data:
             self.__id = data["id"]
+        if "mutation" in data:
+            self.__properties[LinkInterface.property_mutation] = data["mutation"]
 
     def mutation(self) -> str:
         return self.get_property(LinkInterface.property_mutation)
@@ -70,6 +74,9 @@ class MockLink(LinkInterface):
 
 
 class MockStorage(StorageInterface):
+    def __init__(self):
+        self.__objects = []
+
     def new_link(
         self,
         object_id: str,
@@ -77,18 +84,59 @@ class MockStorage(StorageInterface):
         created_timestamp: int | float | None = None,
     ) -> MockLink:
         link = MockLink()
-        data = {"id": object_id}
+        data = {"id": object_id, "mutation": MockStorage.__gen_mutation()}
         link.fill(data)
         return link
 
     def get(self, link: MockLink) -> IO[bytes]:
-        pass
+        for d in self.__objects:
+            if link == d.get("link"):
+                stream = io.BytesIO()
+                stream.write(d.get("data"))
+                stream.seek(0)
+                return stream
+        raise Exception("Link not found")
 
     def put(self, link: MockLink, data: Data) -> bool:
+        self.__objects.append(
+            {
+                "link": link,
+                "data": MockStorage.data2bytes(data),
+            }
+        )
         return True
 
     def remove(self, link: MockLink, as_new_mutation: bool = True) -> bool:
         return False
 
     def find(self, f: LinkFilter | None = None) -> LinkList[MockLink]:
-        return LinkList(list())
+        links = []
+        for d in self.__objects:
+            links.append(d.get("link"))
+        return LinkList(links)
+
+    def inject_get_objects(self) -> list[dict[str, any]]:
+        return self.__objects
+
+    def inject_clear_objects(self):
+        return self.__objects.clear()
+
+    @staticmethod
+    def data2bytes(data: Data) -> bytes:
+        if isinstance(data, bytes):
+            return data
+        elif isinstance(data, str):
+            return bytes(data, "utf-8")
+        elif isinstance(data, io.BufferedReader):
+            return data.read()
+        elif callable(data):
+            stream = io.BytesIO()
+            data(stream)
+            stream.seek(0)
+            return stream.read()
+        else:
+            raise RuntimeError(f"Not supported data type: {type(data)}")
+
+    @staticmethod
+    def __gen_mutation():
+        return str(int(datetime.utcnow().timestamp() * 1000))

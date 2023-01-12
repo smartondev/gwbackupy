@@ -4,7 +4,7 @@ from gwbackupy.providers.service_provider_interface import ServiceProviderInterf
 
 
 class GmailServiceWrapperInterface:
-    def get_messages(self, email: str, q: str) -> list[dict[str, any]]:
+    def get_messages(self, email: str, q: str) -> dict[str, [dict[str, any]]]:
         """Return all messages that match with query"""
         pass
 
