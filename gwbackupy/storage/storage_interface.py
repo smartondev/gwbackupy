@@ -12,11 +12,15 @@ class LinkInterface:
     property_metadata = "metadata"
     property_object = "object"
     property_mutation = "mutation"
+    id_special_prefix = "--gwbackupy-"
 
     # def __init__(self):
 
     def id(self) -> str:
         pass
+
+    def is_special_id(self) -> bool:
+        return self.id().startswith(LinkInterface.id_special_prefix)
 
     def get_properties(self) -> dict[str, any]:
         pass
@@ -112,9 +116,6 @@ class LinkList(list):
 
 
 class StorageInterface:
-    def initialize(self, path: Path):
-        pass
-
     def new_link(
         self,
         object_id: str,

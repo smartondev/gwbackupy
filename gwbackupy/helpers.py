@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import random
+import string
 from datetime import datetime
 import json
 import logging
@@ -63,3 +65,7 @@ def is_rate_limit_exceeded(e) -> bool:
         item.get("domain") == "usageLimits"
         and item.get("reason") == "rateLimitExceeded"
     )
+
+
+def random_string(length: int = 8) -> str:
+    return "".join(random.choice(string.ascii_lowercase) for i in range(16))

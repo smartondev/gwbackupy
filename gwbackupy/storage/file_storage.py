@@ -29,6 +29,12 @@ from gwbackupy.storage.storage_interface import (
 
 
 class FileLink(LinkInterface):
+    """
+    Link object for a file.
+    The properties are stored in the file name.
+    To avoid too many files in one directory, it groups by the original creation date of the object, but this is irrelevant for listing.
+    """
+
     filename_parser = re.compile(
         r"^(?P<id>[^.]+?)(?P<properties>(?:\.[a-z0-9]+=[^.]*)*)\.(?P<extension>.+)$"
     )
@@ -206,9 +212,6 @@ class FileStorage(StorageInterface):
             return True
         logging.error(f"File put fail ({file_path})")
         return False
-
-    def initialize(self, path: Path):
-        pass
 
     def remove(self, link: FileLink, as_new_mutation: bool = True) -> bool:
         if not as_new_mutation:

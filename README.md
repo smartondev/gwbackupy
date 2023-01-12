@@ -115,18 +115,28 @@ gwbackupy \
 Backup run from python code:
 
 ```python
+# WARNING: Calling directly from python code actively change in the current state of development.
+
 from gwbackupy.gmail import Gmail
 from gwbackupy.storage.file_storage import FileStorage
+from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
+from gwbackupy.providers.gapi_gmail_service_wrapper import GapiGmailServiceWrapper
 
 storage = FileStorage('./data/email@example.co')
+service_provider = GmailServiceProvider(
+    service_account_file_path='serviceacc.json',
+    storage=storage,
+)
+service_wrapper = GapiGmailServiceWrapper()
 gmail = Gmail(email='email@example.com',
-              service_account_file_path='xx.json',
+              service_provider=service_provider,
+              service_wrapper=service_wrapper,
               batch_size=3,
               storage=storage)
 if gmail.backup():
-  print('Yeah!')
+    print('Yeah!')
 else:
-  print(':(')
+    print(':(')
 ```
 
 ## Contributing

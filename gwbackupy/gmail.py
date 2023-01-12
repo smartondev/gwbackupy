@@ -1,22 +1,12 @@
 from __future__ import annotations
 
+import collections
 import concurrent.futures
 import gzip
-import hashlib
 import json
 import logging
-import tempfile
 import threading
-import time
-import collections
 from datetime import datetime, timedelta
-
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from oauth2client.service_account import ServiceAccountCredentials
 
 from gwbackupy import global_properties
 from gwbackupy.filters.filter_interface import FilterInterface
@@ -25,7 +15,9 @@ from gwbackupy.helpers import (
     encode_base64url,
     str_trim,
     json_load,
-    is_rate_limit_exceeded,
+)
+from gwbackupy.providers.gmail_service_wrapper_interface import (
+    GmailServiceWrapperInterface,
 )
 from gwbackupy.storage.storage_interface import (
     StorageInterface,
@@ -40,180 +32,42 @@ class Gmail:
 
     object_id_labels = "--gwbackupy-labels--"
     """Gmail's special object ID for storing labels"""
-    object_id_token = "--gwbackupy-token--"
-    """Gmail's special object ID for credentials token"""
-    object_ids_special = [object_id_labels, object_id_token]
 
     def __init__(
         self,
         email: str,
         storage: StorageInterface,
-        service_account_email: str | None = None,
-        service_account_file_path: str | None = None,
-        credentials_file_path: str | None = None,
+        service_wrapper: GmailServiceWrapperInterface,
         batch_size: int = 10,
         labels: list[str] | None = None,
         dry_mode: bool = False,
     ):
-        self.credentials_file_path = credentials_file_path
-        self.credentials_token_links: dict[str, LinkInterface] = dict()
         self.dry_mode = dry_mode
         self.email = email
         self.storage = storage
-        self.service_account_email = service_account_email
-        self.service_account_file_path = service_account_file_path
         if batch_size is None or batch_size < 1:
             batch_size = 5
         self.batch_size = batch_size
         self.__lock = threading.RLock()
         self.__services = {}
         self.__error_count = 0
+        self.__service_wrapper = service_wrapper
         if labels is None:
             labels = []
         self.labels = labels
 
-    def __get_service(self, email=None):
-        service = None
-        if email is None:
-            email = self.email
-        scopes = [
-            "https://mail.google.com/",
-        ]
-        with self.__lock:
-            if email not in self.__services.keys():
-                self.__services[email] = []
-            if len(self.__services[email]) > 0:
-                logging.debug("Reuse service")
-                service = self.__services[email].pop()
-            if service is None:
-                logging.debug("Create new service")
-                credentials = None
-                if self.credentials_file_path is not None:
-                    fd, temp = tempfile.mkstemp()
-                    email_md5 = hashlib.md5(email.encode("utf-8")).hexdigest().lower()
-                    if email_md5 in self.credentials_token_links:
-                        logging.debug("Try to load previously saved token")
-                        token_link = self.credentials_token_links.get(email_md5)
-                        with self.storage.get(token_link) as tf:
-                            with open(temp, "wb") as tfo:
-                                tfo.write(tf.read())
-                        credentials = Credentials.from_authorized_user_file(temp)
-                    if not credentials or not credentials.valid:
-                        if (
-                            credentials
-                            and credentials.expired
-                            and credentials.refresh_token
-                        ):
-                            credentials.refresh(Request())
-                        else:
-                            flow = InstalledAppFlow.from_client_secrets_file(
-                                self.credentials_file_path, scopes
-                            )
-                            credentials = flow.run_local_server(port=0)
-
-                        token_link_new = self.storage.new_link(
-                            Gmail.object_id_token, "json"
-                        )
-                        token_link_new.set_properties({"email": email_md5})
-                        result = self.storage.put(token_link_new, credentials.to_json())
-                        if not result:
-                            raise Exception(
-                                f"{email} Failed to store token ({token_link_new})"
-                            )
-                        else:
-                            logging.info("token stored successfully")
-                            token_link_old = self.credentials_token_links.get(email_md5)
-                            self.credentials_token_links[email_md5] = token_link_new
-                            if token_link_old:
-                                result = self.storage.remove(token_link_old, False)
-                                if result:
-                                    logging.debug(
-                                        f"{email} Old token removed successfully"
-                                    )
-                                else:
-                                    logging.warning(f"{email} Old token removed fail")
-                elif self.service_account_file_path is not None:
-                    extension = self.service_account_file_path.split(".")[-1].lower()
-                    if extension == "p12":
-                        if (
-                            self.service_account_email is None
-                            or self.service_account_email.strip() == ""
-                        ):
-                            raise Exception(
-                                "Service account email is required for p12 keyfile"
-                            )
-                        credentials = ServiceAccountCredentials.from_p12_keyfile(
-                            self.service_account_email,
-                            self.service_account_file_path,
-                            "notasecret",
-                            scopes=scopes,
-                        )
-                    elif extension == "json":
-                        credentials = ServiceAccountCredentials.from_json_keyfile_name(
-                            self.service_account_file_path, scopes
-                        )
-                        pass
-                    else:
-                        raise Exception(f"Not supported service account file extension")
-
-                    credentials = credentials.create_delegated(email)
-                else:
-                    raise Exception(f"Not supported credentials")
-                service = build("gmail", "v1", credentials=credentials)
-        return service
-
-    def __release_service(self, service, email=None):
-        if service is None:
-            return
-        if email is None:
-            email = self.email
-        if email not in self.__services.keys():
-            return
-        logging.debug("Release service (email: " + str(email) + ")")
-        with self.__lock:
-            self.__services[email].append(service)
-
     def __get_local_messages_latest_mutations_only(self):
         pass
 
-    def __get_message_from_server(
-        self, message_id, message_format="raw", try_count=5, sleep=10, email=None
-    ):
+    def __get_message_from_server(self, message_id, message_format="raw", email=None):
+        if email is None:
+            email = self.email
         logging.debug(
             f"{message_id} download from server with format: {message_format}"
         )
-        for i in range(try_count):
-            service = self.__get_service(email)
-            try:
-                # message_id = message_id[:-1] + 'a'
-                result = (
-                    service.users()
-                    .messages()
-                    .get(userId="me", id=message_id, format=message_format)
-                    .execute()
-                )
-                logging.debug(f"{message_id} successfully downloaded")
-                return result
-            except HttpError as e:
-                if e.status_code == 404:
-                    logging.debug(f"{message_id} message not found")
-                    # message not found
-                    return None
-                if i == try_count - 1:
-                    # last try
-                    logging.error(f"{message_id} message download failed")
-                    raise e
-                if not is_rate_limit_exceeded(e):
-                    logging.exception(f"HTTP error")
-                else:
-                    logging.warning(f"{message_id} Rate limit exceeded")
-                logging.info(f"{message_id} Wait {sleep} seconds and retry..")
-                time.sleep(sleep)
-                continue
-            except Exception:
-                raise
-            finally:
-                self.__release_service(service)
+        result = self.__service_wrapper.get_message(email, message_id, message_format)
+        logging.debug(f"{message_id} successfully downloaded")
+        return result
 
     def __store_message_file(
         self, message_id: str, raw_message: bytes, create_timestamp: float
@@ -226,7 +80,7 @@ class Gmail:
             link, data=gzip.compress(raw_message, compresslevel=9)
         )
         if result:
-            logging.info(f"{message_id} message saved")
+            logging.info(f"{message_id} message is saved")
         else:
             raise Exception("Mail message save failed")
 
@@ -237,8 +91,6 @@ class Gmail:
         try:
             # if message_id != '1853ee437c8ff302':
             #     raise Exception('SKIP')
-            if "id" not in message:
-                raise Exception("id key not exists in server message data")
             message_id = message["id"]
             latest_meta_link = None
             if message_id in stored_messages:
@@ -258,7 +110,7 @@ class Gmail:
 
             subject = str_trim(data.get("snippet", ""), 64)
             if is_new:
-                logging.info(f"{message_id} New message, snippet: {subject}")
+                logging.info(f"{message_id} new message, snippet: {subject}")
             else:
                 logging.debug(f"{message_id} Snippet: {subject}")
 
@@ -294,11 +146,11 @@ class Gmail:
                 ).set_properties({LinkInterface.property_metadata: True})
                 success = self.__storage_put(link, data=json.dumps(data))
                 if success:
-                    logging.info(f"{message_id} Meta data is saved")
+                    logging.info(f"{message_id} meta data is saved")
                 else:
                     raise Exception("Meta data put failed")
             else:
-                logging.debug(f"{message_id} Meta data is not changed, skip put")
+                logging.debug(f"{message_id} meta data is not changed, skip put")
             if message_id in stored_messages:
                 del stored_messages[message_id]
         except Exception as e:
@@ -313,51 +165,18 @@ class Gmail:
     ):
         if email is None:
             email = self.email
-        service = self.__get_service(email)
-        try:
-            logging.info("Get all message ids from server...")
-            messages = {}
-            count = 0
-            next_page_token = None
-            page = 1
-            while True:
-                logging.debug(f"Loading {page}. from server...")
-                # print('.', end='')
-                data = (
-                    service.users()
-                    .messages()
-                    .list(userId="me", pageToken=next_page_token, maxResults=1000, q=q)
-                    .execute()
-                )
-                logging.debug(f"{page} successfully loaded")
-                # print(data)
-                # exit(-1)
-                next_page_token = data.get("nextPageToken", None)
-                count = count + len(data.get("messages", []))
-                for message in data.get("messages", []):
-                    messages[message.get("id")] = message
-                page += 1
-                if data.get("nextPageToken") is None:
-                    break
-            logging.info("Message(s) count: " + str(count))
-            # print(count)
-            # print(messages)
-            return messages
-        finally:
-            self.__release_service(service, email)
+        logging.info("Get all message ids from server...")
+        messages = self.__service_wrapper.get_messages(email, q)
+        logging.info(f"Message(s) count: len({len(messages)}")
+        # print(count)
+        # print(messages)
+        return messages
 
     def __get_labels_from_server(self, email=None) -> list[dict[str, any]]:
         if email is None:
             email = self.email
         logging.info(f"Getting labels from server ({email})")
-        service = None
-        try:
-            service = self.__get_service(email)
-            response = service.users().labels().list(userId="me").execute()
-            return response.get("labels", [])
-        finally:
-            if service is not None:
-                self.__release_service(service, email)
+        return self.__service_wrapper.get_labels(email)
 
     def __backup_labels(self, link: LinkInterface | None) -> bool:
         logging.info("Backing up labels...")
@@ -403,10 +222,8 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.credentials_token_links = stored_data_all.find(
-            f=lambda l: l.id() == Gmail.object_id_token,
-            g=lambda l: [l.get_properties().get("email", "")],
-        )
+        self.__service_wrapper.get_service_provider().storage_links(stored_data_all)
+
         labels_link = stored_data_all.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata
         )
@@ -419,8 +236,7 @@ class Gmail:
             logging.info(f"Quick syncing, going back {quick_sync_days} days")
 
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
-            f=lambda l: l.id() not in Gmail.object_ids_special
-            and (l.is_metadata() or l.is_object()),
+            f=lambda l: not l.is_special_id() and (l.is_metadata() or l.is_object()),
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1],
         )
         del stored_data_all
@@ -491,7 +307,9 @@ class Gmail:
         logging.info(f"Backup finished for {self.email}")
         return True
 
-    def __create_label_server(self, label_name, email) -> dict | None:
+    def __create_label_server(self, label_name, email) -> dict:
+        if email is None:
+            email = self.email
         logging.info(f"Restoring label if not exists: {label_name}")
         if self.dry_mode:
             logging.info("DRY MODE: create label if not exists")
@@ -500,26 +318,7 @@ class Gmail:
                 "type": "user",
                 "name": label_name,
             }
-        service = None
-        try:
-            service = self.__get_service(email)
-            result = (
-                service.users()
-                .labels()
-                .create(userId="me", body={"name": label_name})
-                .execute()
-            )
-            return result
-        except HttpError as e:
-            if e.status_code == 409:
-                # already exists
-                return None
-            raise
-        except Exception:
-            raise
-        finally:
-            if service is not None:
-                self.__release_service(service, email)
+        return self.__service_wrapper.create_label(email=email, name=label_name)
 
     def __get_restore_label_ids(
         self,
@@ -589,8 +388,6 @@ class Gmail:
         labels_from_storage: dict[str, dict[str, any]],
         labels_form_server: dict[str, dict[str, any]],
         add_labels: [str],
-        try_count=5,
-        sleep=10,
     ):
         try:
             logging.info(f"{restore_message_id} Restoring message...")
@@ -631,44 +428,14 @@ class Gmail:
                 "raw": encode_base64url(message_content),
             }
             subject = str_trim(meta.get("snippet", ""), 64)
-            for i in range(try_count):
-                service = self.__get_service(to_email)
-                try:
-                    logging.info(
-                        f"{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})"
-                    )
-                    if self.dry_mode:
-                        logging.info(f"{restore_message_id} DRY MODE insert message")
-                        result = {"id": f"DRYMODE{datetime.utcnow().timestamp():1.3f}"}
-                    else:
-                        result = (
-                            service.users()
-                            .messages()
-                            .insert(
-                                userId="me",
-                                internalDateSource="dateHeader",
-                                body=message_data,
-                            )
-                            .execute()
-                        )
-                    logging.debug(f"Message uploaded {result}")
-                    logging.info(
-                        f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})'
-                    )
-                    return result
-                except HttpError as e:
-                    if i == try_count - 1:
-                        # last trys
-                        raise e
-                    logging.error(f"{restore_message_id} Exception: {e}")
-                    logging.info(
-                        f"{restore_message_id} Wait {sleep} seconds and retry.."
-                    )
-                    time.sleep(sleep)
-                    continue
-                finally:
-                    if service is not None:
-                        self.__release_service(service, to_email)
+            if self.dry_mode:
+                logging.info(f"DRY MODE {restore_message_id} message insert")
+            result = self.__service_wrapper.insert_message(to_email, message_data)
+            logging.debug(f"Message uploaded {result}")
+            logging.info(
+                f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})'
+            )
+            return result
         except BaseException as e:
             with self.__lock:
                 self.__error_count += 1
@@ -718,10 +485,7 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.credentials_token_links = stored_data_all.find(
-            f=lambda l: l.id() == Gmail.object_id_token,
-            g=lambda l: [l.get_properties().get("email", "")],
-        )
+        self.__service_wrapper.get_service_provider().storage_links(stored_data_all)
 
         latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
@@ -743,7 +507,7 @@ class Gmail:
 
         logging.info("Filtering messages...")
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
-            f=lambda l: l.id() not in Gmail.object_ids_special
+            f=lambda l: not l.is_special_id()
             and (l.is_metadata() or l.is_object())
             and item_filter.match(
                 {
