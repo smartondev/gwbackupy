@@ -6,10 +6,7 @@ import gzip
 import json
 import logging
 import threading
-import time
 from datetime import datetime, timedelta
-
-from googleapiclient.errors import HttpError
 
 from gwbackupy import global_properties
 from gwbackupy.filters.filter_interface import FilterInterface
@@ -22,7 +19,6 @@ from gwbackupy.helpers import (
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
-from gwbackupy.providers.service_provider_interface import ServiceProviderInterface
 from gwbackupy.storage.storage_interface import (
     StorageInterface,
     LinkList,
