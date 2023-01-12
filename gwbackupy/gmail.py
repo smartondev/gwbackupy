@@ -91,8 +91,6 @@ class Gmail:
         try:
             # if message_id != '1853ee437c8ff302':
             #     raise Exception('SKIP')
-            if "id" not in message:
-                raise Exception("id key not exists in server message data")
             message_id = message["id"]
             latest_meta_link = None
             if message_id in stored_messages:
