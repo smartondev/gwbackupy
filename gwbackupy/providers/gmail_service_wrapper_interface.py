@@ -21,10 +21,12 @@ class GmailServiceWrapperInterface:
     def get_service_provider(self) -> ServiceProviderInterface:
         pass
 
-    def create_label(self, email: str, name: str) -> dict[str, any]:
+    def create_label(
+        self, email: str, name: str, get_if_already_exists: bool = False
+    ) -> dict[str, any]:
         """Create a label if not existing, and return the label data"""
         pass
 
-    def insert_message(self, email: str, data: dict[str, any]) -> str:
+    def insert_message(self, email: str, data: dict[str, any]) -> dict[str, any]:
         """Insert a message to server with specified data, and return new message ID"""
         pass

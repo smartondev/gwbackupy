@@ -84,7 +84,7 @@ class Gmail:
             link, data=gzip.compress(raw_message, compresslevel=9)
         )
         if result:
-            logging.info(f"{message_id} message saved")
+            logging.info(f"{message_id} message is saved")
         else:
             raise Exception("Mail message save failed")
 
@@ -116,7 +116,7 @@ class Gmail:
 
             subject = str_trim(data.get("snippet", ""), 64)
             if is_new:
-                logging.info(f"{message_id} New message, snippet: {subject}")
+                logging.info(f"{message_id} new message, snippet: {subject}")
             else:
                 logging.debug(f"{message_id} Snippet: {subject}")
 
@@ -152,11 +152,11 @@ class Gmail:
                 ).set_properties({LinkInterface.property_metadata: True})
                 success = self.__storage_put(link, data=json.dumps(data))
                 if success:
-                    logging.info(f"{message_id} Meta data is saved")
+                    logging.info(f"{message_id} meta data is saved")
                 else:
                     raise Exception("Meta data put failed")
             else:
-                logging.debug(f"{message_id} Meta data is not changed, skip put")
+                logging.debug(f"{message_id} meta data is not changed, skip put")
             if message_id in stored_messages:
                 del stored_messages[message_id]
         except Exception as e:
@@ -313,7 +313,7 @@ class Gmail:
         logging.info(f"Backup finished for {self.email}")
         return True
 
-    def __create_label_server(self, label_name, email) -> dict | None:
+    def __create_label_server(self, label_name, email) -> dict:
         if email is None:
             email = self.email
         logging.info(f"Restoring label if not exists: {label_name}")
@@ -324,22 +324,7 @@ class Gmail:
                 "type": "user",
                 "name": label_name,
             }
-        with self.__service_provider.get_service(email) as service:
-            try:
-                result = (
-                    service.users()
-                    .labels()
-                    .create(userId="me", body={"name": label_name})
-                    .execute()
-                )
-                return result
-            except HttpError as e:
-                if e.status_code == 409:
-                    # already exists
-                    return None
-                raise
-            except Exception:
-                raise
+        return self.__service_wrapper.create_label(email=email, name=label_name)
 
     def __get_restore_label_ids(
         self,
@@ -409,8 +394,6 @@ class Gmail:
         labels_from_storage: dict[str, dict[str, any]],
         labels_form_server: dict[str, dict[str, any]],
         add_labels: [str],
-        try_count=5,
-        sleep=10,
     ):
         try:
             logging.info(f"{restore_message_id} Restoring message...")
@@ -451,45 +434,14 @@ class Gmail:
                 "raw": encode_base64url(message_content),
             }
             subject = str_trim(meta.get("snippet", ""), 64)
-            for i in range(try_count):
-                with self.__service_provider.get_service(to_email) as service:
-                    try:
-                        logging.info(
-                            f"{restore_message_id} Trying to upload message {i + 1}/{try_count} ({subject})"
-                        )
-                        if self.dry_mode:
-                            logging.info(
-                                f"{restore_message_id} DRY MODE insert message"
-                            )
-                            result = {
-                                "id": f"DRYMODE{datetime.utcnow().timestamp():1.3f}"
-                            }
-                        else:
-                            result = (
-                                service.users()
-                                .messages()
-                                .insert(
-                                    userId="me",
-                                    internalDateSource="dateHeader",
-                                    body=message_data,
-                                )
-                                .execute()
-                            )
-                        logging.debug(f"Message uploaded {result}")
-                        logging.info(
-                            f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})'
-                        )
-                        return result
-                    except HttpError as e:
-                        if i == try_count - 1:
-                            # last trys
-                            raise e
-                        logging.error(f"{restore_message_id} Exception: {e}")
-                        logging.info(
-                            f"{restore_message_id} Wait {sleep} seconds and retry.."
-                        )
-                        time.sleep(sleep)
-                        continue
+            if self.dry_mode:
+                logging.info(f"DRY MODE {restore_message_id} message insert")
+            result = self.__service_wrapper.insert_message(to_email, message_data)
+            logging.debug(f"Message uploaded {result}")
+            logging.info(
+                f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})'
+            )
+            return result
         except BaseException as e:
             with self.__lock:
                 self.__error_count += 1

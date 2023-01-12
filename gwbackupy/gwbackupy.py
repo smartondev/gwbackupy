@@ -167,7 +167,10 @@ def cli_startup():
                 service_account_file_path=args.service_account_key_filepath,
                 storage=storage,
             )
-            service_wrapper = GapiGmailServiceWrapper(service_provider=service_provider)
+            service_wrapper = GapiGmailServiceWrapper(
+                service_provider=service_provider,
+                dry_mode=args.dry,
+            )
             gmail = Gmail(
                 email=args.email,
                 service_wrapper=service_wrapper,
