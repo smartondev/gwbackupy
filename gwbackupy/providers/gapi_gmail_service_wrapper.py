@@ -81,7 +81,7 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     return None
                 if i == self.try_count - 1:
                     # last try
-                    logging.exception(f"{message_id} message download failed")
+                    logging.exception(f"{message_id} message download failed: {e}")
                     raise e
                 if is_rate_limit_exceeded(e):
                     logging.warning(
@@ -89,6 +89,11 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     )
                     time.sleep(self.try_sleep)
                 else:
+                    raise e
+            except TimeoutError as e:
+                if i == self.try_count - 1:
+                    # last try
+                    logging.exception(f"{message_id} message download failed: {e}")
                     raise e
 
     def create_label(
@@ -125,6 +130,12 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     time.sleep(self.try_sleep)
                 else:
                     logging.warning(f"Next attempt to create label ({name})")
+            except TimeoutError as e:
+                if i == self.try_count - 1:
+                    # last try
+                    logging.exception(f"Label ({name}) create fail: {e}")
+                    raise e
+
             if not get_if_already_exists:
                 return {
                     "name": name,
