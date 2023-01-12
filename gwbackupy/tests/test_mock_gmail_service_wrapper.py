@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
-import string
 
 from gwbackupy.helpers import random_string
 from gwbackupy.providers.gmail_service_wrapper_interface import (
