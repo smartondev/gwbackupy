@@ -10,7 +10,6 @@ from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
-from gwbackupy.providers.service_provider_interface import ServiceProviderInterface
 
 
 class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
@@ -89,3 +88,9 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     time.sleep(self.try_sleep)
                 else:
                     raise e
+
+    def create_label(self, email: str, name: str) -> dict[str, any]:
+        pass
+
+    def insert_message(self, email: str, data: dict[str, any]) -> str:
+        pass

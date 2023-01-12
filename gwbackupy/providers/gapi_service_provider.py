@@ -25,6 +25,7 @@ from gwbackupy.storage.storage_interface import (
 
 class GapiServiceProvider(ServiceProviderInterface):
     object_id_token = LinkInterface.id_special_prefix + "token--"
+    """object ID for access token save and load"""
 
     def __init__(
         self,
@@ -81,13 +82,15 @@ class GapiServiceProvider(ServiceProviderInterface):
                 )
         return ServiceItem(self, email, service)
 
-    def set_storage_links(self, links: LinkList[LinkInterface]):
+    def storage_links(self, links: LinkList[LinkInterface]):
+        """Filter stored tokens for OAuth authentication"""
         self.credentials_token_links = links.find(
             f=lambda l: l.id() == GapiServiceProvider.object_id_token,
             g=lambda l: [l.get_properties().get("email", "")],
         )
 
     def __get_credentials_by_service_account(self, email: str):
+        """get credentials by service account access"""
         extension = self.service_account_file_path.split(".")[-1].lower()
         if extension == "p12":
             if (
@@ -114,6 +117,7 @@ class GapiServiceProvider(ServiceProviderInterface):
         return credentials
 
     def __get_credentials_by_oauth(self, email: str):
+        """Get credentials object from OAuth access. This method store token and reuse/refresh if required"""
         credentials = None
         fd, temp = tempfile.mkstemp()
         email_md5 = hashlib.md5(email.encode("utf-8")).hexdigest().lower()

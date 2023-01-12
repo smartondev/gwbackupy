@@ -26,10 +26,13 @@ class ServiceItem:
 
 class ServiceProviderInterface:
     def release_service(self, email: str, service):
+        """Release the service"""
         pass
 
     def get_service(self, email: str) -> ServiceItem:
+        """Get the service"""
         pass
 
-    def set_storage_links(self, links: LinkList[LinkInterface]):
+    def storage_links(self, links: LinkList[LinkInterface]):
+        """Pass storage links for tokens and more functionality"""
         pass

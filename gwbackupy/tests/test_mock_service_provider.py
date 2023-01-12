@@ -13,5 +13,5 @@ class MockServiceProvider(ServiceProviderInterface):
         service = dict()
         return ServiceItem(provider=self, email=email, service=service)
 
-    def set_storage_links(self, links: LinkList[LinkInterface]):
+    def storage_links(self, links: LinkList[LinkInterface]):
         pass

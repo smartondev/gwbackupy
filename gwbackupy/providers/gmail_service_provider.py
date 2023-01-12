@@ -5,6 +5,8 @@ from gwbackupy.storage.storage_interface import StorageInterface
 
 
 class GmailServiceProvider(GapiServiceProvider):
+    """Gmail service provider from gmail/v1 API with full access scope"""
+
     def __init__(
         self,
         credentials_file_path: str | None = None,
