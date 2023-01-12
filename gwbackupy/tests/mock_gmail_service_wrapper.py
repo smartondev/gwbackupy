@@ -6,7 +6,7 @@ from gwbackupy.helpers import random_string
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
-from gwbackupy.tests.test_mock_service_provider import MockServiceProvider
+from gwbackupy.tests.mock_service_provider import MockServiceProvider
 
 
 class MockGmailServiceWrapper(GmailServiceWrapperInterface):

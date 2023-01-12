@@ -3,8 +3,8 @@ from datetime import datetime
 
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import random_string, encode_base64url
-from gwbackupy.tests.test_mock_storage import MockStorage
-from gwbackupy.tests.test_mock_gmail_service_wrapper import MockGmailServiceWrapper
+from gwbackupy.tests.mock_storage import MockStorage
+from gwbackupy.tests.mock_gmail_service_wrapper import MockGmailServiceWrapper
 
 
 def test_server_backup_empty():
