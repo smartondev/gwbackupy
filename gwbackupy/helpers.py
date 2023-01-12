@@ -5,6 +5,7 @@ import random
 import signal
 import string
 import threading
+import time
 from datetime import datetime
 import json
 import logging
@@ -96,3 +97,11 @@ def is_killed_handling_func(*args):
         global is_killed_value
         logging.info("Handle kill signal")
         is_killed_value = True
+
+
+def sleep_with_check(seconds: float):
+    start = datetime.now().timestamp()
+    while datetime.now().timestamp() - start < seconds:
+        time.sleep(0.1)
+        if is_killed():
+            return

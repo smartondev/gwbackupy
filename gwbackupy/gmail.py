@@ -6,7 +6,6 @@ import gzip
 import json
 import logging
 import threading
-import time
 from datetime import datetime, timedelta
 
 from gwbackupy import global_properties
@@ -17,6 +16,7 @@ from gwbackupy.helpers import (
     str_trim,
     json_load,
     is_killed,
+    sleep_with_check,
 )
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
@@ -265,6 +265,7 @@ class Gmail:
         logging.info("Processing...")
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
         futures = []
+        # submit message download jobs
         for message_id in messages_from_server:
             futures.append(
                 executor.submit(
@@ -273,8 +274,9 @@ class Gmail:
                     stored_messages,
                 )
             )
+        # wait for jobs
         while not is_killed():
-            time.sleep(1)
+            sleep_with_check(1)
             has_not_done = False
             for f in futures:
                 if not f.done():
@@ -285,6 +287,7 @@ class Gmail:
             else:
                 break
         if is_killed():
+            # cancel jobs
             executor.shutdown(cancel_futures=True)
             logging.warning("Process is killed")
             return False
