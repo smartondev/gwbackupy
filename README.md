@@ -8,7 +8,8 @@
 
 ## What is it?
 
-Gwbackupy is an open source [Google Workspace™](https://workspace.google.com/) backup and restore solution, written in python.
+Gwbackupy is an open source [Google Workspace™](https://workspace.google.com/) backup and restore solution, written in
+python.
 
 *Currently supported Gmail messages and labels only.*
 
@@ -49,9 +50,11 @@ storages are not considered as paid plans*
 
 ## Requirements
 
-- `pip` or `python3`
+- `python3` and `pip`
 - [Google Cloud](https://cloud.google.com/) account and own created access files.
   **This software does not contain access files, this is for security reasons.**
+
+  A credit card is required during registration, but the use of Workspace APIs is free.
 
 ## Install
 
@@ -66,6 +69,8 @@ gwbackupy ...
 or
 
 ```bash
+# clone this repository
+# install requirements
 pip install -r requirements.txt
 # and run...
 python3 -m gwbackupy ...
