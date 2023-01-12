@@ -115,6 +115,8 @@ gwbackupy \
 Backup run from python code:
 
 ```python
+# WARNING: Calling directly from python code actively change in the current state of development.
+
 from gwbackupy.gmail import Gmail
 from gwbackupy.storage.file_storage import FileStorage
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
