@@ -144,6 +144,10 @@ else:
     print(':(')
 ```
 
+## Security
+
+See [SECURITY.md](SECURITY.md)
+
 ## Contributing
 
 ...
