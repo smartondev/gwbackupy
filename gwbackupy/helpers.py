@@ -68,4 +68,4 @@ def is_rate_limit_exceeded(e) -> bool:
 
 
 def random_string(length: int = 8) -> str:
-    return "".join(random.choice(string.ascii_lowercase) for i in range(16))
+    return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
