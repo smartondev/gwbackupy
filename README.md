@@ -20,7 +20,7 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 - is still abandoned (??)
 - authentication method is not usable in Google Workspace wide
 - designed only for gmail messages
-- only supports IMAP protocol (slow and limited speed)
+- only supports IMAP protocol (slow and less security)
 
 ## Details
 
