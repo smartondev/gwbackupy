@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import logging
-import time
 
 from googleapiclient.errors import HttpError
 
 from gwbackupy.helpers import is_rate_limit_exceeded, random_string
+from gwbackupy.process_helpers import sleep_with_check
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
@@ -87,7 +87,7 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.warning(
                         f"{message_id} rate limit exceeded, sleeping for {self.try_sleep} seconds"
                     )
-                    time.sleep(self.try_sleep)
+                    sleep_with_check(self.try_sleep)
                 else:
                     raise e
             except TimeoutError as e:
@@ -127,7 +127,7 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.warning(
                         f"Label ({name}) create rate limit exceeded, sleeping for {self.try_sleep} seconds"
                     )
-                    time.sleep(self.try_sleep)
+                    sleep_with_check(self.try_sleep)
                 else:
                     logging.warning(f"Next attempt to create label ({name})")
             except TimeoutError as e:
@@ -174,6 +174,6 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.warning(
                         f"Message insert rate limit exceeded, sleeping for {self.try_sleep} seconds"
                     )
-                    time.sleep(self.try_sleep)
+                    sleep_with_check(self.try_sleep)
                 else:
                     logging.warning(f"Next attempt to insert message")

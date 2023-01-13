@@ -16,6 +16,7 @@ from gwbackupy.helpers import (
     str_trim,
     json_load,
 )
+from gwbackupy.process_helpers import is_killed, sleep_with_check, await_all_futures
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
@@ -167,7 +168,7 @@ class Gmail:
             email = self.email
         logging.info("Get all message ids from server...")
         messages = self.__service_wrapper.get_messages(email, q)
-        logging.info(f"Message(s) count: len({len(messages)}")
+        logging.info(f"Message(s) count: {len(messages)}")
         # print(count)
         # print(messages)
         return messages
@@ -261,15 +262,23 @@ class Gmail:
             q = f"label:all after:{date.strftime('%Y/%m/%d')}"
         messages_from_server = self.__get_all_messages_from_server(q=q)
         logging.info("Processing...")
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.batch_size
-        ) as executor:
-            for message_id in messages_from_server:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
+        futures = []
+        # submit message download jobs
+        for message_id in messages_from_server:
+            futures.append(
                 executor.submit(
                     self.__backup_messages,
                     messages_from_server[message_id],
                     stored_messages,
                 )
+            )
+        # wait for jobs
+        if not await_all_futures(futures):
+            # cancel jobs
+            executor.shutdown(cancel_futures=True)
+            logging.warning("Process is killed")
+            return False
         logging.info("Processed")
 
         if self.__error_count > 0:
@@ -280,6 +289,10 @@ class Gmail:
         if quick_sync_days is None:
             logging.info("Mark as deletes...")
             for message_id in stored_messages:
+                if is_killed():
+                    logging.warning("Process is killed")
+                    return False
+
                 links = stored_messages[message_id]
                 logging.debug(f"{message_id} mark as deleted in local storage...")
                 meta_link = links.get(0)
@@ -529,10 +542,10 @@ class Gmail:
 
         logging.info(f"Number of potentially affected messages: {len(stored_messages)}")
         logging.info("Upload messages...")
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.batch_size
-        ) as executor:
-            for message_id in stored_messages:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
+        futures = []
+        for message_id in stored_messages:
+            futures.append(
                 executor.submit(
                     self.__restore_message,
                     message_id,
@@ -542,6 +555,10 @@ class Gmail:
                     labels_from_server,
                     add_labels,
                 )
+            )
+        if not await_all_futures(futures):
+            logging.warning("Process killed")
+            return False
 
         if self.__error_count > 0:
             logging.error(f"Messages uploaded with {self.__error_count} errors")
