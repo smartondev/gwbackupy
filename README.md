@@ -5,6 +5,8 @@
 [![BSD-3-Clause](https://img.shields.io/github/license/smartondev/gwbackupy)](LICENSE)
 [![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/smartondev/gwbackupy)](https://coveralls.io/github/smartondev/gwbackupy?branch=main)
+![](https://img.shields.io/circleci/build/github/smartondev/gwbackupy?label=circleci)
+![](https://img.shields.io/github/actions/workflow/status/smartondev/gwbackupy/publish-pypi.yml?label=publish-pypi)
 
 ## What is it?
 
