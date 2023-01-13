@@ -15,9 +15,8 @@ from gwbackupy.helpers import (
     encode_base64url,
     str_trim,
     json_load,
-    is_killed,
-    sleep_with_check,
 )
+from gwbackupy.process_helpers import is_killed, sleep_with_check, await_all_futures
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
@@ -275,18 +274,7 @@ class Gmail:
                 )
             )
         # wait for jobs
-        while not is_killed():
-            sleep_with_check(1)
-            has_not_done = False
-            for f in futures:
-                if not f.done():
-                    has_not_done = True
-                    break
-            if has_not_done:
-                continue
-            else:
-                break
-        if is_killed():
+        if not await_all_futures(futures):
             # cancel jobs
             executor.shutdown(cancel_futures=True)
             logging.warning("Process is killed")
@@ -554,10 +542,10 @@ class Gmail:
 
         logging.info(f"Number of potentially affected messages: {len(stored_messages)}")
         logging.info("Upload messages...")
-        with concurrent.futures.ThreadPoolExecutor(
-            max_workers=self.batch_size
-        ) as executor:
-            for message_id in stored_messages:
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
+        futures = []
+        for message_id in stored_messages:
+            futures.append(
                 executor.submit(
                     self.__restore_message,
                     message_id,
@@ -567,6 +555,10 @@ class Gmail:
                     labels_from_server,
                     add_labels,
                 )
+            )
+        if not await_all_futures(futures):
+            logging.warning("Process killed")
+            return False
 
         if self.__error_count > 0:
             logging.error(f"Messages uploaded with {self.__error_count} errors")

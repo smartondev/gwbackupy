@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import base64
 import random
-import signal
 import string
-import threading
-import time
 from datetime import datetime
 import json
 import logging
@@ -71,37 +68,4 @@ def is_rate_limit_exceeded(e) -> bool:
 
 
 def random_string(length: int = 8) -> str:
-    return "".join(random.choice(string.ascii_lowercase) for i in range(16))
-
-
-is_killed_handling: bool = False
-is_killed_value: bool = False
-is_killed_lock = threading.RLock()
-
-
-def is_killed() -> bool:
-    global is_killed_lock
-    with is_killed_lock:
-        global is_killed_handling
-        if not is_killed_handling:
-            signal.signal(signal.SIGINT, is_killed_handling_func)
-            signal.signal(signal.SIGTERM, is_killed_handling_func)
-            is_killed_handling = True
-        global is_killed_value
-        return is_killed_value
-
-
-def is_killed_handling_func(*args):
-    global is_killed_lock
-    with is_killed_lock:
-        global is_killed_value
-        logging.info("Handle kill signal")
-        is_killed_value = True
-
-
-def sleep_with_check(seconds: float):
-    start = datetime.now().timestamp()
-    while datetime.now().timestamp() - start < seconds:
-        time.sleep(0.1)
-        if is_killed():
-            return
+    return "".join(random.choice(string.ascii_lowercase) for _ in range(length))

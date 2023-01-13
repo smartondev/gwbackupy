@@ -213,8 +213,11 @@ def cli_startup():
                     exit(1)
             else:
                 raise Exception("Unknown command")
-    except Exception:
-        logging.exception("CLI startup failed")
+    except KeyboardInterrupt:
+        logging.warning("Process is interrupted")
+        exit(1)
+    except BaseException:
+        logging.exception("CLI startup/run failed")
         exit(1)
 
 

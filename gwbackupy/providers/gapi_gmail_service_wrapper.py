@@ -4,7 +4,8 @@ import logging
 
 from googleapiclient.errors import HttpError
 
-from gwbackupy.helpers import is_rate_limit_exceeded, random_string, sleep_with_check
+from gwbackupy.helpers import is_rate_limit_exceeded, random_string
+from gwbackupy.process_helpers import sleep_with_check
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
