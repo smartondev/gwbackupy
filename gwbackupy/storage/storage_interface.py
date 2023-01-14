@@ -8,6 +8,9 @@ Data = Union[str, bytes, DataCall, IO]
 
 
 class LinkInterface:
+    """
+    This interface represents a link to an storage item.
+    """
     property_deleted = "deleted"
     property_metadata = "metadata"
     property_object = "object"
@@ -54,6 +57,9 @@ LinkGroupBy = Callable[[LinkInterface], list[Union[str, int]]]
 
 
 class LinkList(list):
+    """
+    List of links. The list is allows to group and filter.
+    """
     def __init__(self, iterable):
         super().__init__(item for item in iterable)
 
@@ -116,6 +122,9 @@ class LinkList(list):
 
 
 class StorageInterface:
+    """
+    Storage interface with base storage functionality
+    """
     def new_link(
         self,
         object_id: str,
