@@ -42,4 +42,4 @@ jobs:
           name: Check black format
           command: |
             pip install -U black
-            python -m black setup.py gwbackupy
+            python -m black --check setup.py gwbackupy
