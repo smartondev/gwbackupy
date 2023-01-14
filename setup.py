@@ -10,7 +10,7 @@ with open("requirements.txt", "r") as fh:
         requires.append(line.strip())
 
 setup(
-    name="gwbackupy",
+             name="gwbackupy",
     version=global_properties.version,
     packages=[
         "gwbackupy",
