@@ -4,7 +4,7 @@ from datetime import datetime
 from time import sleep
 
 from gwbackupy.process_helpers import (
-    sleep_with_check,
+    sleep_kc,
     is_killed,
     is_killed_reset,
     is_killed_handling_func,
@@ -15,7 +15,7 @@ from gwbackupy.process_helpers import (
 def test_sleep_with_check():
     assert not is_killed()
     start = datetime.now().timestamp()
-    sleep_with_check(0.3, sleep_step=0.05)
+    sleep_kc(0.3, sleep_step=0.05)
     end = datetime.now().timestamp()
     assert end - start < 1
     assert end - start >= 0.3
@@ -33,7 +33,7 @@ def test_sleep_with_check_with_kill():
         _thread = threading.Thread(target=do_kill)
         _thread.start()
         start = datetime.now().timestamp()
-        sleep_with_check(10, sleep_step=0.05)
+        sleep_kc(10, sleep_step=0.05)
         end = datetime.now().timestamp()
         assert end - start < 0.5
         assert end - start >= 0.3

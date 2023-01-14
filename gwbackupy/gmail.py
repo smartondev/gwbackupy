@@ -16,7 +16,7 @@ from gwbackupy.helpers import (
     str_trim,
     json_load,
 )
-from gwbackupy.process_helpers import is_killed, sleep_with_check, await_all_futures
+from gwbackupy.process_helpers import is_killed, sleep_kc, await_all_futures
 from gwbackupy.providers.gmail_service_wrapper_interface import (
     GmailServiceWrapperInterface,
 )
