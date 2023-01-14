@@ -1,4 +1,4 @@
-from gwbackupy import gwbackupy
+from gwbackupy import gwbackupy_cli
 
 if __name__ == "__main__":
-    gwbackupy.cli_startup()
+    gwbackupy_cli.cli_startup()
