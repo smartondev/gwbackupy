@@ -2,7 +2,7 @@
 
 ## DEV
 
-
+- Bug #42: fix cli with --help or no argv exception
 
 ## 0.7.0
 

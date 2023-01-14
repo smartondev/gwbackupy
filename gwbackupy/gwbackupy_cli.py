@@ -1,24 +1,23 @@
 import argparse
-import threading
 import logging
 import sys
-from tzlocal import get_localzone
+import threading
+
 import pytz as pytz
+from tzlocal import get_localzone
 
 import gwbackupy.global_properties as global_properties
 from gwbackupy.filters.gmail_filter import GmailFilter
-
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import parse_date
 from gwbackupy.providers.gapi_gmail_service_wrapper import GapiGmailServiceWrapper
-from gwbackupy.providers.gapi_service_provider import GapiServiceProvider
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.storage.file_storage import FileStorage
 
 lock = threading.Lock()
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     log_levels = {
         "finest": global_properties.log_finest,
         "debug": logging.DEBUG,
@@ -29,9 +28,17 @@ def parse_arguments():
     }
 
     parser = argparse.ArgumentParser(
-        description="Google Workspace Backup Tool " + global_properties.version
+        description="Google Workspace Backup Tool " + global_properties.version,
+        add_help=False,
     )
     parser.set_defaults(feature=True)
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="help",
+        default=argparse.SUPPRESS,
+        help="Show this help message and exit.",
+    )
     parser.add_argument(
         "--dry", default=False, help="Run in dry mode", action="store_true"
     )
@@ -133,8 +140,10 @@ def parse_arguments():
         help="Filter date to (exclusive, format: yyyy-mm-dd or yyyy-mm-dd hh:mm:ss)",
         default=None,
     )
-
-    args = parser.parse_args(args=None if sys.argv[1:] else ["--help"])
+    if len(sys.argv) == 1 or "--help" in sys.argv:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
+    args = parser.parse_args(args=sys.argv[1:])
     Log_Format = "%(levelname)s %(asctime)s - %(message)s"
     logging.addLevelName(global_properties.log_finest, "FINEST")
     logging.basicConfig(
@@ -216,6 +225,8 @@ def cli_startup():
     except KeyboardInterrupt:
         logging.warning("Process is interrupted")
         exit(1)
+    except SystemExit as e:
+        exit(e.code)
     except BaseException:
         logging.exception("CLI startup/run failed")
         exit(1)

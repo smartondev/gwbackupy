@@ -1,5 +1,5 @@
 #!/usr/bin/env python
 
-from gwbackupy import gwbackupy
+from gwbackupy import gwbackupy_cli
 
-gwbackupy.cli_startup()
+gwbackupy_cli.cli_startup()
