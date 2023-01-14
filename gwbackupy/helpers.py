@@ -14,6 +14,13 @@ from googleapiclient.errors import HttpError
 
 
 def str_trim(text, length, postfix="..."):
+    """
+    Trim a string to a specified length, and add a postfix if the string is longer than the specified length.
+    :param text: the string to be trimmed
+    :param length: the maximum length of the string
+    :param postfix: the postfix to add if the string is longer than the specified length (default is "...")
+    :return: the trimmed string
+    """
     if len(text) > length:
         text = text[:length] + postfix
     return text
@@ -30,6 +37,12 @@ def encode_base64url(data):
 
 
 def parse_date(date: str, tz: tzlocal) -> datetime:
+    """
+    Parse a date string and return a datetime object with the corresponding timezone.
+    :param date: string representing a date in the format "YYYY-MM-DD" or 'YYYY-MM-DD hh:mm:ss'
+    :param tz: timezone to be set for the returned datetime object
+    :return: datetime object with the corresponding timezone
+    """
     tzs = datetime.now().astimezone(tz).strftime("%z")
     df = "%Y-%m-%d %H:%M:%S %z"
     try:
