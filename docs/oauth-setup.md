@@ -17,7 +17,7 @@ You can enable the APIs for the services you want to use based on this descripti
 
 ## 4. Create a "OAuth content screen"
 
-- In gcp console navigate to "APIs & Services" > "OAuth Content Screen"
+- In GCP console navigate to "APIs & Services" > "OAuth Content Screen"
 - Please fill in the required information. If you are using it for your own purposes, 
 there is no need to fill in all the information, as you will only be using it in test mode.
 
