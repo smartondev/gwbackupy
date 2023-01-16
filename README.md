@@ -82,10 +82,10 @@ python3 -m gwbackupy ...
 
 - [GCP OAUTH access setup](docs/oauth-setup.md)
 
-  *For free Gmail plan or paid Google Worspace plans*
+  *For free Gmail plan or paid Google Workspace™ plans*
 - [GCP Service Account Setup](docs/service-account-setup.md)
 
-  *Only for paid Google Worspace plans*
+  *Only for paid Google Workspace™ plans*
 
 ## Usage
 
