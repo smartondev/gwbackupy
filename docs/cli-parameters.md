@@ -1,16 +1,16 @@
 # CLI parameters
 
-| parameter                        | type     | description                                                                 |
-|----------------------------------|----------|-----------------------------------------------------------------------------|
-| `--log-level`                    | string   | Set logging level: `finest`, `debug`, `info` (default), `error`, `critical` |
-| `--batch-size`                   | integer  | Concurrent threads count, default: 5                                        |
-| `--service-account-key-filepath` | filepath | JSON or P12 service account file path                                       |
-| `--service-account-email`        | string   | Service account email address, required only for P12 type                   |
-| `--credentials-filepath`         | string   | OAUTH credentials json                                                      |
-| `--timzone`                      | string   | Timezone                                                                    |
-| `--workdir`                      | string   | Storage directory path, default: `./data`                                   |
-| `--dry`                          |          | Dry mode (not modify on server, not modify in local storage)                |
-| `<service>`                      | service  | Service ID, eg. gmail                                                       |
+| parameter                        | type     | description                                                                                       |
+|----------------------------------|----------|---------------------------------------------------------------------------------------------------|
+| `--log-level`                    | string   | Set logging level: `finest`, `debug`, `info` (default), `error`, `critical`                       |
+| `--batch-size`                   | integer  | Concurrent threads count, default: 5                                                              |
+| `--service-account-key-filepath` | filepath | JSON or P12 service account file path, see more [Service Account Setup](service-account-setup.md) |
+| `--service-account-email`        | string   | Service account email address, required only for P12 type                                         |
+| `--credentials-filepath`         | string   | OAUTH credentials json, see more [OAuth setup](oauth-setup.md)                                    |
+| `--timzone`                      | string   | Timezone                                                                                          |
+| `--workdir`                      | string   | Storage directory path, default: `./data`                                                         |
+| `--dry`                          |          | Dry mode (not modify on server, not modify in local storage)                                      |
+| `<service>`                      | service  | Service ID, eg. gmail                                                                             |
 
 ## `service` types
 
