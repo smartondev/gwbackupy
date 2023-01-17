@@ -7,7 +7,8 @@ orbs:
 workflows:
   testing:
     jobs:
-      - build-and-test
+      - build-and-test-3.10
+      - build-and-test-3.7
       - coveralls-build
       - black-format-check
 
@@ -22,16 +23,27 @@ jobs:
           command: 'pip install -r dev-requirements.txt && coverage run -a --source=gwbackupy setup.py test && coverage run -a -m pytest gwbackupy && coverage-lcov && echo 1'
       - coveralls/upload:
           path_to_lcov: lcov.info
-  build-and-test:
+  build-and-test-3.10:
     docker:
-      - image: cimg/python:3.10.5
+      - image: cimg/python:3.10
     steps:
       - checkout
       - python/install-packages:
           pip-dependency-file: dev-requirements.txt
           pkg-manager: pip
       - run:
-          name: Run tests
+          name: Run tests 3.10
+          command: pytest
+  build-and-test-3.7:
+    docker:
+      - image: cimg/python:3.7
+    steps:
+      - checkout
+      - python/install-packages:
+          pip-dependency-file: dev-requirements.txt
+          pkg-manager: pip
+      - run:
+          name: Run tests 3.7
           command: pytest
   black-format-check:
     docker:

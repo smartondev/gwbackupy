@@ -54,7 +54,7 @@ class LinkInterface:
 
 
 LinkFilter = Callable[[LinkInterface], bool]
-LinkGroupBy = Callable[[LinkInterface], list[Union[str, int]]]
+LinkGroupBy = Callable[[LinkInterface], list]
 
 
 class LinkList(list):

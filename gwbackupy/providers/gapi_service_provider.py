@@ -82,7 +82,7 @@ class GapiServiceProvider(ServiceProviderInterface):
                 )
         return ServiceItem(self, email, service)
 
-    def storage_links(self, links: LinkList[LinkInterface]):
+    def storage_links(self, links: LinkList):
         """Filter stored tokens for OAuth authentication"""
         self.credentials_token_links = links.find(
             f=lambda l: l.id() == GapiServiceProvider.object_id_token,
