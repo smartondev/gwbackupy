@@ -2,7 +2,7 @@
 
 ## DEV
 
-
+- Bug #47: fix python3.7 run failures
 
 ## 0.7.1
 
