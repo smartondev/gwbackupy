@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from gwbackupy.storage.storage_interface import (
-    LinkInterface,
     LinkList,
 )
 
@@ -33,6 +32,6 @@ class ServiceProviderInterface:
         """Get the service"""
         pass
 
-    def storage_links(self, links: LinkList[LinkInterface]):
+    def storage_links(self, links: LinkList):
         """Pass storage links for tokens and more functionality"""
         pass
