@@ -1,8 +1,9 @@
-from gwbackupy.storage.storage_interface import LinkInterface
+from gwbackupy.storage.storage_interface import LinkInterface, LinkList
 from gwbackupy.tests.mock_not_impleneted_storage_interface import (
     MockNotImplementedStorage,
     MockNotImplementedLink,
 )
+from gwbackupy.tests.mock_storage import MockLink, MockStorage
 
 
 def get_exception(f):
@@ -55,12 +56,53 @@ def test_not_implemented_link():
     e = get_exception(lambda: link.mutation())
     assert isinstance(e, NotImplementedError)
     assert str(e) == "LinkInterface#mutation"
-    e = get_exception(lambda: link.is_object())
+    e = get_exception(lambda: link.is_deleted())
     assert isinstance(e, NotImplementedError)
-    assert str(e) == "LinkInterface#is_object"
+    assert str(e) == "LinkInterface#is_deleted"
     e = get_exception(lambda: link.is_metadata())
     assert isinstance(e, NotImplementedError)
     assert str(e) == "LinkInterface#is_metadata"
     e = get_exception(lambda: link.is_object())
     assert isinstance(e, NotImplementedError)
     assert str(e) == "LinkInterface#is_object"
+
+
+def test_link_list():
+    ll = LinkList()
+    e = get_exception(lambda: ll.append("aa"))
+    assert isinstance(e, ValueError)
+    assert get_exception(lambda: ll.append(MockNotImplementedLink())) is None
+    e = get_exception(lambda: ll.__setitem__(0, "aa"))
+    assert isinstance(e, ValueError)
+    assert get_exception(lambda: ll.__setitem__(0, MockNotImplementedLink())) is None
+    e = get_exception(lambda: ll.insert(0, "aa"))
+    assert isinstance(e, ValueError)
+    assert get_exception(lambda: ll.insert(0, MockNotImplementedLink())) is None
+
+
+def test_link_list_find():
+    ll = LinkList()
+    assert ll.find(f=lambda _: False) is None
+    assert ll.find(f=lambda _: True) is None
+    ms = MockStorage()
+    link = ms.new_link("apple", "-")
+    ll.append(link)
+    assert ll.find(f=lambda _: False) is None
+    assert ll.find(f=lambda _: True) == link
+    link2 = ms.new_link("apple", "-")
+    ll.append(link2)
+    assert ll.find(f=lambda _: True) == link2
+    link3 = ms.new_link("apple2", "-")
+    ll.append(link3)
+    assert ll.find(f=lambda x: x.id() == "apple2") == link3
+    assert ll.find(f=lambda x: x.id() == "apple") == link2
+    assert ll.find(f=lambda _: True, g=lambda x: [x.id()]) == {
+        "apple": link2,
+        "apple2": link3,
+    }
+    assert ll.find(f=lambda _: True, g=lambda x: ["x", x.id()]) == {
+        "x": {
+            "apple": link2,
+            "apple2": link3,
+        },
+    }

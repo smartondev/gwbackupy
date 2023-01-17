@@ -60,16 +60,27 @@ class LinkList(list):
     List of links. The list is allows to group and filter.
     """
 
-    def __init__(self, iterable):
+    def __init__(self, iterable=None):
+        if iterable is None:
+            iterable = []
         super().__init__(item for item in iterable)
 
     def __setitem__(self, index, item):
-        super().__setitem__(index, str(item))
+        LinkList.__item_is_link_interface(item)
+        super().__setitem__(index, item)
+
+    @staticmethod
+    def __item_is_link_interface(item) -> True:
+        if isinstance(item, LinkInterface):
+            return True
+        raise ValueError("item must be a LinkInterface")
 
     def insert(self, index, item):
+        LinkList.__item_is_link_interface(item)
         super().insert(index, item)
 
     def append(self, item):
+        LinkList.__item_is_link_interface(item)
         super().append(item)
 
     def extend(self, other):
