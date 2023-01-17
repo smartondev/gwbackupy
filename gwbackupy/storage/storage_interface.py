@@ -18,39 +18,37 @@ class LinkInterface:
     property_mutation = "mutation"
     id_special_prefix = "--gwbackupy-"
 
-    # def __init__(self):
-
     def id(self) -> str:
-        pass
+        raise NotImplementedError("LinkInterface#id")
 
     def is_special_id(self) -> bool:
         return self.id().startswith(LinkInterface.id_special_prefix)
 
     def get_properties(self) -> dict[str, any]:
-        pass
+        raise NotImplementedError("LinkInterface#get_properties")
 
     def set_properties(
         self, sets: dict[str, any], replace: bool = False
     ) -> LinkInterface:
-        pass
+        raise NotImplementedError("LinkInterface#set_properties")
 
     def get_property(self, name: str, default: any = None) -> any:
-        pass
+        raise NotImplementedError("LinkInterface#get_property")
 
     def has_property(self, name: str) -> bool:
-        pass
+        raise NotImplementedError("LinkInterface#has_property")
 
     def mutation(self) -> str:
-        pass
+        raise NotImplementedError("LinkInterface#mutation")
 
     def is_deleted(self) -> bool:
-        pass
+        raise NotImplementedError("LinkInterface#is_deleted")
 
     def is_metadata(self) -> bool:
-        pass
+        raise NotImplementedError("LinkInterface#is_metadata")
 
     def is_object(self) -> bool:
-        pass
+        raise NotImplementedError("LinkInterface#is_object")
 
 
 LinkFilter = Callable[[LinkInterface], bool]
@@ -62,16 +60,27 @@ class LinkList(list):
     List of links. The list is allows to group and filter.
     """
 
-    def __init__(self, iterable):
+    def __init__(self, iterable=None):
+        if iterable is None:
+            iterable = []
         super().__init__(item for item in iterable)
 
     def __setitem__(self, index, item):
-        super().__setitem__(index, str(item))
+        LinkList.__item_is_link_interface(item)
+        super().__setitem__(index, item)
+
+    @staticmethod
+    def __item_is_link_interface(item) -> True:
+        if isinstance(item, LinkInterface):
+            return True
+        raise ValueError("item must be a LinkInterface")
 
     def insert(self, index, item):
+        LinkList.__item_is_link_interface(item)
         super().insert(index, item)
 
     def append(self, item):
+        LinkList.__item_is_link_interface(item)
         super().append(item)
 
     def extend(self, other):
@@ -134,16 +143,16 @@ class StorageInterface:
         extension: str,
         created_timestamp: int | float | None = None,
     ) -> LinkInterface:
-        pass
+        raise NotImplementedError("StorageInterface#new_link")
 
     def get(self, link: LinkInterface) -> IO[bytes]:
-        pass
+        raise NotImplementedError("StorageInterface#get")
 
     def put(self, link: LinkInterface, data: Data) -> bool:
-        pass
+        raise NotImplementedError("StorageInterface#put")
 
     def remove(self, link: LinkInterface, as_new_mutation: bool = True) -> bool:
-        pass
+        raise NotImplementedError("StorageInterface#remove")
 
     def find(self, f: LinkFilter | None = None) -> LinkList[LinkInterface]:
-        pass
+        raise NotImplementedError("StorageInterface#find")
