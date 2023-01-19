@@ -96,14 +96,15 @@ class LinkList(list):
         result = {}
         use_group_by = g is not None
         found = 0
-        if g is None:
-            g = lambda _: [""]
         for link in self:
             link: LinkInterface
             if f is not None and not f(link):
                 continue
             found += 1
-            gks = g(link)
+            if use_group_by:
+                gks = g(link)
+            else:
+                gks = [""]
             local_result = result
             for i in range(len(gks)):
                 if i == len(gks) - 1:
@@ -114,16 +115,12 @@ class LinkList(list):
                 local_result = local_result[gk]
             gk = gks[-1]
             if gk not in local_result:
+                # key not exists
                 local_result[gk] = link
                 continue
-            result_mutation = local_result[gk].mutation()
-            if result_mutation is None:
-                result_mutation = ""
-            item_mutation = link.mutation()
-            if item_mutation is None:
-                item_mutation = ""
 
-            if result_mutation < item_mutation:
+            if local_result[gk].mutation() < link.mutation():
+                # mutation is newer than previous mutation
                 local_result[gk] = link
         if use_group_by:
             return result

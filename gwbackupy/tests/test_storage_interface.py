@@ -80,6 +80,14 @@ def test_link_list():
     assert get_exception(lambda: ll.insert(0, MockNotImplementedLink())) is None
 
 
+def test_link_interface():
+    ms = MockStorage()
+    link = ms.new_link("apple", "-")
+    assert not link.is_special_id()
+    link2 = ms.new_link(LinkInterface.id_special_prefix + "apple", "-")
+    assert link2.is_special_id()
+
+
 def test_link_list_find():
     ll = LinkList()
     assert ll.find(f=lambda _: False) is None
@@ -105,4 +113,16 @@ def test_link_list_find():
             "apple": link2,
             "apple2": link3,
         },
+    }
+    assert ll.find(f=lambda _: True, g=lambda x: ["x", "y", x.id()]) == {
+        "x": {
+            "y": {
+                "apple": link2,
+                "apple2": link3,
+            },
+        },
+    }
+    assert ll.find(f=lambda _: True, g=lambda x: [x.id(), "x"]) == {
+        "apple": {"x": link2},
+        "apple2": {"x": link3},
     }
