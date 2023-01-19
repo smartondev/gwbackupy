@@ -121,6 +121,7 @@ def test_link_remove():
         fs = FileStorage(root=temproot)
         link = fs.new_link("testid", "json", None)
         assert fs.put(link, "data")
+        time.sleep(0.002)
         assert fs.remove(link)
         assert exists(link.get_file_path())
         links = fs.find()
