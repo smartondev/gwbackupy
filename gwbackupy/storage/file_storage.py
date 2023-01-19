@@ -318,6 +318,7 @@ class FileStorage(StorageInterface):
                         f.write(bytes(data, "utf-8"))
                     elif isinstance(data, io.BufferedReader):
                         f.write(data.read())
+                        data.close()
                     elif callable(data):
                         data(f)
                     else:
