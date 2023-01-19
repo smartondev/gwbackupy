@@ -2,7 +2,7 @@
 
 ## DEV
 
-
+- Enh: use offline access tokens
 
 ## 0.7.2
 
