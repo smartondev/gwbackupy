@@ -1,17 +1,10 @@
 from gwbackupy.storage.storage_interface import LinkInterface, LinkList
+from gwbackupy.tests.helpers import get_exception
 from gwbackupy.tests.mock_not_impleneted_storage_interface import (
     MockNotImplementedStorage,
     MockNotImplementedLink,
 )
-from gwbackupy.tests.mock_storage import MockLink, MockStorage
-
-
-def get_exception(f):
-    try:
-        f()
-    except BaseException as e:
-        return e
-    return None
+from gwbackupy.tests.mock_storage import MockStorage
 
 
 def test_not_implemented_storage():

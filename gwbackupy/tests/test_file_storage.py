@@ -25,6 +25,13 @@ def test_link_put_and_get():
         assert links[0] == link
 
 
+def test_link_put_not_supported_data():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("testid", "json", None)
+        assert not fs.put(link, {})
+
+
 def test_link_put_string():
     with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
         fs = FileStorage(root=temproot)
@@ -98,3 +105,26 @@ def test_mutations():
                 assert not deleted_found
                 deleted_found = True
         assert deleted_found
+
+
+def test_link_remove_permanently():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("testid", "json", None)
+        assert fs.put(link, "data")
+        assert fs.remove(link, as_new_mutation=False)
+        assert not exists(link.get_file_path())
+
+
+def test_link_remove():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("testid", "json", None)
+        assert fs.put(link, "data")
+        assert fs.remove(link)
+        assert exists(link.get_file_path())
+        links = fs.find()
+        assert len(links) == 2
+        link_scanned = links.find(f=lambda link: link.id() == "testid")
+        assert link_scanned is not None
+        assert link_scanned.is_deleted()

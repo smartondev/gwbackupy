@@ -242,7 +242,7 @@ class FileStorage(StorageInterface):
             return False
         return True
 
-    def find(self, f: LinkFilter | None = None) -> LinkList[LinkInterface]:
+    def find(self, f: LinkFilter | None = None) -> LinkList[FileLink]:
         abspath = self.root
         skip_path = len(abspath)
         result: LinkList[LinkInterface] = LinkList([])
@@ -322,7 +322,9 @@ class FileStorage(StorageInterface):
                     elif callable(data):
                         data(f)
                     else:
-                        raise RuntimeError(f"Not supported data type: {type(data)}")
+                        raise NotImplementedError(
+                            f"Not supported data type: {type(data)}"
+                        )
             except BaseException as e:
                 logging.exception(f"Temporary file writing fail {file_path_tmp}: {e}")
                 return False
