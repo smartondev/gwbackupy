@@ -76,7 +76,7 @@ def test_mutations():
         fs = FileStorage(root=temproot)
         link = fs.new_link("testid", "json", None)
         assert fs.put(link, "data")
-        time.sleep(1)
+        time.sleep(0.002)
         link2 = fs.new_link("testid", "json", None)
         assert fs.put(link2, "data2")
         with fs.get(link) as f:
