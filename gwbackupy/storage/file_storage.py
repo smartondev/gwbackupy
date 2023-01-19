@@ -234,13 +234,12 @@ class FileStorage(StorageInterface):
                 if not f:
                     logging.error(f"{link.get_file_path()} not found or not readable")
                     return False
-                self.put(dst, f)
+                return self.put(dst, f)
         except BaseException as e:
             logging.exception(
                 f"Copy as new mutation is failed {link.get_file_path()} -> {dst.get_file_path()}: {e}"
             )
             return False
-        return True
 
     def find(self, f: LinkFilter | None = None) -> LinkList[FileLink]:
         abspath = self.root

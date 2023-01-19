@@ -2,7 +2,7 @@
 
 ## DEV
 
-
+- Bug: fix file storage new mutation as deleted with put fail error 
 
 # 0.8.0
 
