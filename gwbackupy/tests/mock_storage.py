@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 from datetime import datetime
 from typing import IO
@@ -121,6 +122,20 @@ class MockStorage(StorageInterface):
                 d.put("link", to_link)
                 return True
         return False
+
+    def content_hash_add(self, link: LinkInterface) -> LinkInterface:
+        pass
+
+    def content_hash_check(self, link: LinkInterface) -> bool | None:
+        pass
+
+    def content_hash_generate(self, data: IO[bytes] | bytes | str) -> str:
+        return hashlib.sha1(self.data2bytes(data)).hexdigest().lower()
+
+    def content_hash_eq(
+        self, link: LinkInterface, data: IO[bytes] | bytes | str
+    ) -> bool:
+        pass
 
     def inject_get_objects(self) -> list[dict[str, any]]:
         return self.__objects

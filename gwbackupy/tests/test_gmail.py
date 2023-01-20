@@ -3,6 +3,7 @@ from datetime import datetime
 
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import random_string, encode_base64url
+from gwbackupy.storage.storage_interface import LinkInterface
 from gwbackupy.tests.mock_storage import MockStorage
 from gwbackupy.tests.mock_gmail_service_wrapper import MockGmailServiceWrapper
 
@@ -50,5 +51,7 @@ def test_server_backup_one_message():
                 message_body_found = True
                 with ms.get(link) as f:
                     assert message_raw == gzip.decompress(f.read())
+                assert link.has_property(LinkInterface.property_content_hash)
+                assert ms.content_hash_generate(message_raw) == link.get_property(LinkInterface.property_content_hash)
     assert message_meta_found
     assert message_body_found

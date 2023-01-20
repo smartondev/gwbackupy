@@ -169,5 +169,5 @@ class StorageInterface:
     ) -> bool:
         raise NotImplementedError("StorageInterface#content_hash_eq")
 
-    def content_hash_generate(self, data: IO[bytes] | bytes | str) -> bool:
+    def content_hash_generate(self, data: IO[bytes] | bytes | str) -> str:
         raise NotImplementedError("StorageInterface#content_hash_generate")
