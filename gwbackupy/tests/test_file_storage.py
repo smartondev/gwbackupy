@@ -352,3 +352,8 @@ def test_generate_content_hash():
             fs.generate_content_hash(fs.get(link))
             == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )
+        try:
+            fs.generate_content_hash({})
+            assert False
+        except RuntimeError as e:
+            assert str(e).startswith("Invalid type: ")
