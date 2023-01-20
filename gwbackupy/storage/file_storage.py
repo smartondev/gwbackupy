@@ -231,9 +231,6 @@ class FileStorage(StorageInterface):
         )
         try:
             with self.get(link) as f:
-                if not f:
-                    logging.error(f"{link.get_file_path()} not found or not readable")
-                    return False
                 return self.put(dst, f)
         except BaseException as e:
             logging.exception(

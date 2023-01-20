@@ -5,6 +5,7 @@ import time
 from os.path import exists
 
 from gwbackupy.storage.file_storage import FileStorage
+from gwbackupy.storage.storage_interface import LinkInterface
 
 
 def test_find_empty():
@@ -136,8 +137,10 @@ def test_find_not_valid_files():
         fs = FileStorage(root=temproot)
         with open(os.path.join(temproot, ".gitignore"), "w") as f:
             f.write("a")
-        with open(os.path.join(temproot, "without-extension"), "w") as f:
+        with open(os.path.join(temproot, "invalid"), "w") as f:
             f.write("b")
+        with open(os.path.join(temproot, "without-extension."), "w") as f:
+            f.write("c")
         links = fs.find()
         assert len(links) == 0
 
@@ -221,3 +224,24 @@ def test_remove_fail():
         fs.put(link, "data")
         os.remove(link.get_file_path())
         assert not fs.remove(link)
+
+
+def test_link_props():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        assert not link.is_metadata()
+        assert not link.is_object()
+        link.set_properties({LinkInterface.property_metadata: True})
+        assert link.is_metadata()
+        assert not link.is_object()
+        link.set_properties({LinkInterface.property_object: True})
+        assert link.is_metadata()
+        assert link.is_object()
+        assert link.get_property(LinkInterface.property_object) is True
+        assert link.get_property("not-exists") is None
+        assert link.get_property("not-exists", 33) is 33
+
+        link.set_properties({LinkInterface.property_object: True}, replace=True)
+        assert not link.is_metadata()
+        assert link.is_object()
