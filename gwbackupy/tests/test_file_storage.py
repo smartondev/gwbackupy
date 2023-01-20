@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 import tempfile
 import time
@@ -282,3 +283,77 @@ def test_storage_modify_fail():
         fs.put(link, "d1")
         fs.put(link2, "d2")
         assert not fs.modify(link, link2)
+
+
+def test_content_hash():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        assert fs.content_hash_check(link) is None
+        new_link = fs.content_hash_add(link)
+        assert fs.content_hash_check(new_link) is True
+        chash = new_link.get_property(LinkInterface.property_content_hash)
+        assert chash is not None
+        with fs.get(new_link) as f:
+            assert chash == fs.generate_content_hash(f)
+        fs.put(new_link, "a1234")
+        assert fs.content_hash_check(new_link) is False
+
+        link3 = fs.new_link("test123", "ext2")
+        link3.set_properties(
+            {LinkInterface.property_content_hash: fs.generate_content_hash("a1234")}
+        )
+        fs.put(link3, "a1234")
+        assert fs.content_hash_check(link3) is True
+
+        link4 = fs.new_link("test4", "ext2")
+        assert fs.content_hash_eq(link4, "cccc") is False
+
+
+def test_content_hash_add_fail():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        os.remove(link.get_file_path())
+        try:
+            new_link = fs.content_hash_add(link)
+            assert False
+        except FileNotFoundError:
+            assert True
+
+
+def test_content_hash_check_fail():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        new_link = fs.content_hash_add(link)
+        os.remove(new_link.get_file_path())
+        try:
+            fs.content_hash_check(new_link)
+            assert False
+        except FileNotFoundError:
+            assert True
+
+
+def test_generate_content_hash():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        assert fs.generate_content_hash("a1234") == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+        assert (
+            fs.generate_content_hash(bytes("a1234", "utf-8"))
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+        )
+        link = fs.new_link("test", "ext")
+        fs.put(link, "a1234")
+        assert (
+            fs.generate_content_hash(fs.get(link))
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+        )
+        try:
+            fs.generate_content_hash({})
+            assert False
+        except RuntimeError as e:
+            assert str(e).startswith("Invalid type: ")

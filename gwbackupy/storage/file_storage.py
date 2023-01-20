@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import logging
 import os
@@ -286,6 +287,49 @@ class FileStorage(StorageInterface):
             )
             return False
         return True
+
+    def content_hash_add(self, link: FileLink) -> FileLink:
+        try:
+            with self.get(link) as f:
+                content_hash = self.generate_content_hash(f)
+
+            to_link = copy.deepcopy(link)
+            to_link.set_properties({LinkInterface.property_content_hash: content_hash})
+            if self.modify(link, to_link):
+                return to_link
+            raise RuntimeError(f"Link hashing failed ({link.get_file_path()})")
+        except FileNotFoundError:
+            logging.exception(f"File not found: {link.get_file_path()}")
+            raise
+
+    def content_hash_check(self, link: FileLink) -> bool | None:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return None
+        try:
+            with self.get(link) as f:
+                return self.content_hash_eq(link, f)
+        except FileNotFoundError:
+            logging.exception(f"File not found: {link.get_file_path()}")
+            raise
+
+    def content_hash_eq(self, link: FileLink, data: IO[bytes] | bytes | str) -> bool:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return False
+        return self.generate_content_hash(data) == link.get_property(
+            LinkInterface.property_content_hash
+        )
+
+    def generate_content_hash(self, b: IO[bytes] | bytes | str) -> str:
+        if isinstance(b, bytes):
+            data = b
+        elif isinstance(b, str):
+            data = bytes(b, "utf-8")
+        elif isinstance(b, io.BufferedReader):
+            data = b.read()
+        else:
+            raise NotImplementedError(f"Invalid type: {type(b)}")
+
+        return "m" + hashlib.md5(data).hexdigest().lower()
 
     @staticmethod
     def __remove(file_path: str) -> bool:

@@ -4,18 +4,18 @@ from gwbackupy.tests.mock_not_impleneted_storage_interface import (
     MockNotImplementedStorage,
     MockNotImplementedLink,
 )
-from gwbackupy.tests.mock_storage import MockStorage
+from gwbackupy.tests.mock_storage import MockStorage, MockLink
 
 
 def test_not_implemented_storage():
     s = MockNotImplementedStorage()
-    e = get_exception(lambda: s.get(LinkInterface()))
+    e = get_exception(lambda: s.get(MockLink()))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#get"
-    e = get_exception(lambda: s.put(LinkInterface(), ""))
+    e = get_exception(lambda: s.put(MockLink(), ""))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#put"
-    e = get_exception(lambda: s.remove(LinkInterface()))
+    e = get_exception(lambda: s.remove(MockLink()))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#remove"
     e = get_exception(lambda: s.find())
@@ -24,9 +24,18 @@ def test_not_implemented_storage():
     e = get_exception(lambda: s.new_link("-", "-"))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#new_link"
-    e = get_exception(lambda: s.modify(LinkInterface(), LinkInterface()))
+    e = get_exception(lambda: s.modify(MockLink(), MockLink()))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#modify"
+    e = get_exception(lambda: s.content_hash_add(MockLink()))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#content_hash_add"
+    e = get_exception(lambda: s.content_hash_check(MockLink()))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#content_hash_check"
+    e = get_exception(lambda: s.content_hash_eq(MockLink(), ""))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#content_hash_eq"
 
 
 def test_not_implemented_link():
