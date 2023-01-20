@@ -307,6 +307,36 @@ def test_content_hash():
         fs.put(link3, "a1234")
         assert fs.content_hash_check(link3) is True
 
+        link4 = fs.new_link("test4", "ext2")
+        assert fs.content_hash_eq(link4, "cccc") is False
+
+
+def test_content_hash_add_fail():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        os.remove(link.get_file_path())
+        try:
+            new_link = fs.content_hash_add(link)
+            assert False
+        except FileNotFoundError:
+            assert True
+
+
+def test_content_hash_check_fail():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        new_link = fs.content_hash_add(link)
+        os.remove(new_link.get_file_path())
+        try:
+            fs.content_hash_check(new_link)
+            assert False
+        except FileNotFoundError:
+            assert True
+
 
 def test_generate_content_hash():
     with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
