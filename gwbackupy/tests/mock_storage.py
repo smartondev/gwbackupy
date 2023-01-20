@@ -45,12 +45,15 @@ class MockLink(LinkInterface):
             return True
         return False
 
-    def set_properties(self, sets: dict[str, any], replace: bool = False) -> FileLink:
+    def set_properties(self, sets: dict[str, any], replace: bool = False) -> MockLink:
         if replace:
             self.__properties = sets
             return self
         for k, v in sets.items():
-            self.__properties[k] = v
+            if k in self.__properties and v is None:
+                del self.__properties[k]
+            else:
+                self.__properties[k] = v
         return self
 
     def is_deleted(self) -> bool:
@@ -120,7 +123,7 @@ class MockStorage(StorageInterface):
     def modify(self, link: MockLink, to_link: MockLink) -> bool:
         for d in self.__objects:
             if d.get("link") == link:
-                d.put("link", to_link)
+                d["link"] = to_link
                 return True
         return False
 

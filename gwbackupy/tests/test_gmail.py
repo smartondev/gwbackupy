@@ -1,3 +1,4 @@
+import copy
 import gzip
 from datetime import datetime
 
@@ -20,7 +21,7 @@ def test_server_backup_empty():
     assert gmail.backup()
 
 
-def test_server_backup_one_message():
+def test_server_continuous_backup():
     ms = MockStorage()
     sw = MockGmailServiceWrapper()
     message_id = random_string()
@@ -38,46 +39,7 @@ def test_server_backup_one_message():
         storage=ms,
         service_wrapper=sw,
     )
-    assert gmail.backup()
-    # labels + one metadata + one message body
-    assert len(ms.inject_get_objects()) == 3
-    message_meta_found = False
-    message_body_found = False
-    for link in ms.find():
-        if link.id() == message_id:
-            if link.is_metadata():
-                message_meta_found = True
-            if link.is_object():
-                message_body_found = True
-                with ms.get(link) as f:
-                    assert message_raw == gzip.decompress(f.read())
-                assert link.has_property(LinkInterface.property_content_hash)
-                assert ms.content_hash_generate(message_raw) == link.get_property(
-                    LinkInterface.property_content_hash
-                )
-                assert ms.content_hash_check(link)
-    assert message_meta_found
-    assert message_body_found
-
-
-def test_server_continuos_backup():
-    ms = MockStorage()
-    sw = MockGmailServiceWrapper()
-    message_id = random_string()
-    message_raw = bytes(f"Message body... {message_id}", "utf-8")
-    sw.inject_message(
-        {
-            "id": message_id,
-            "raw": encode_base64url(message_raw),
-            "internalDate": str(int(datetime.now().timestamp() * 1000)),
-        }
-    )
-    email = "example@example.com"
-    gmail = Gmail(
-        email=email,
-        storage=ms,
-        service_wrapper=sw,
-    )
+    # check initial backup
     assert gmail.backup()
     message_id2 = random_string()
     message_raw2 = bytes(f"Message body... {message_id2}", "utf-8")
@@ -88,6 +50,7 @@ def test_server_continuos_backup():
             "internalDate": str(int(datetime.now().timestamp() * 1000)),
         }
     )
+    # check continuous backup
     assert gmail.backup()
     # labels + two messages metadata + two messages object
     assert len(ms.inject_get_objects()) == 1 + 2 + 2
@@ -108,14 +71,38 @@ def test_server_continuos_backup():
                     f.read()
                 )
             assert link.has_property(LinkInterface.property_content_hash)
-            assert ms.content_hash_generate(
-                requirements[link.id()]["message_raw"]
-            ) == link.get_property(LinkInterface.property_content_hash)
             assert ms.content_hash_check(link)
+            link_without_content_hash = copy.deepcopy(link)
+            link_without_content_hash.set_properties(
+                {
+                    LinkInterface.property_content_hash: None,
+                }
+            )
+            assert ms.modify(link, link_without_content_hash)
+            assert (
+                link_without_content_hash.has_property(
+                    LinkInterface.property_content_hash
+                )
+                is False
+            )
 
     for _id in requirements:
         assert requirements[_id]["metadata"]
         assert requirements[_id]["message"]
 
+    # check content hash missing
+    for link in ms.find():
+        if link.is_special_id():
+            continue
+        if link.is_object():
+            assert link.has_property(LinkInterface.property_content_hash) is False
+            assert ms.content_hash_check(link) is None
 
-# TODO: add tests for content hash fix BC
+    # check content hash fix
+    assert gmail.backup()
+    for link in ms.find():
+        if link.is_special_id():
+            continue
+        if link.is_object():
+            assert link.has_property(LinkInterface.property_content_hash)
+            assert ms.content_hash_check(link) is True
