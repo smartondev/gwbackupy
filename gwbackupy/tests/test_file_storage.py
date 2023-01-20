@@ -282,3 +282,19 @@ def test_storage_modify_fail():
         fs.put(link, "d1")
         fs.put(link2, "d2")
         assert not fs.modify(link, link2)
+
+
+def test_content_hash():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        assert fs.check_hash(link) is None
+        new_link = fs.add_hash(link)
+        assert fs.check_hash(new_link) is True
+        chash = new_link.get_property(LinkInterface.property_content_hash)
+        assert chash is not None
+        with fs.get(new_link) as f:
+            assert chash == FileStorage.generate_content_hash(f)
+        fs.put(new_link, "a1234")
+        assert fs.check_hash(new_link) is False
