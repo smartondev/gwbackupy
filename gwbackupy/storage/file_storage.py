@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import logging
 import os
@@ -286,6 +287,39 @@ class FileStorage(StorageInterface):
             )
             return False
         return True
+
+    def add_hash(self, link: FileLink) -> FileLink:
+        try:
+            with self.get(link) as f:
+                content_hash = FileStorage.__generate_content_hash(f)
+
+            to_link = copy.deepcopy(link)
+            to_link.set_properties({LinkInterface.property_content_hash: content_hash})
+            if self.modify(link, to_link):
+                return to_link
+            raise RuntimeError(f"Link hashing failed ({link.get_file_path()})")
+        except FileNotFoundError:
+            logging.exception(f"File not found: {link.get_file_path()}")
+            raise
+
+    def check_hash(self, link: FileLink) -> bool | None:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return None
+        try:
+            with self.get(link) as f:
+                content_hash = FileStorage.__generate_content_hash(f)
+            return content_hash == link.get_property(
+                LinkInterface.property_content_hash
+            )
+        except FileNotFoundError:
+            logging.exception(f"File not found: {link.get_file_path()}")
+            raise
+
+    @staticmethod
+    def __generate_content_hash(b: IO[bytes]) -> str:
+        content = b.read()
+        result = hashlib.sha1(content)
+        return result.hexdigest()
 
     @staticmethod
     def __remove(file_path: str) -> bool:
