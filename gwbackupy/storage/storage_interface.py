@@ -16,7 +16,7 @@ class LinkInterface:
     property_metadata = "metadata"
     property_object = "object"
     property_mutation = "mutation"
-    property_content_hash = "chash"
+    property_content_hash = "ch"
     id_special_prefix = "--gwbackupy-"
 
     def id(self) -> str:
@@ -164,6 +164,7 @@ class StorageInterface:
     def content_hash_check(self, link: LinkInterface) -> bool | None:
         raise NotImplementedError("StorageInterface#content_hash_check")
 
-    def content_hash_eq(self, link: LinkInterface, data: IO[bytes] | bytes | str) -> bool:
+    def content_hash_eq(
+        self, link: LinkInterface, data: IO[bytes] | bytes | str
+    ) -> bool:
         raise NotImplementedError("StorageInterface#content_hash_eq")
-

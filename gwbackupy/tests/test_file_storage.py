@@ -289,30 +289,32 @@ def test_content_hash():
         fs = FileStorage(root=temproot)
         link = fs.new_link("test", "ext")
         fs.put(link, "d1234")
-        assert fs.check_hash(link) is None
-        new_link = fs.add_hash(link)
-        assert fs.check_hash(new_link) is True
+        assert fs.content_hash_check(link) is None
+        new_link = fs.content_hash_add(link)
+        assert fs.content_hash_check(new_link) is True
         chash = new_link.get_property(LinkInterface.property_content_hash)
         assert chash is not None
         with fs.get(new_link) as f:
-            assert chash == FileStorage.generate_content_hash(f)
+            assert chash == fs.generate_content_hash(f)
         fs.put(new_link, "a1234")
-        assert fs.check_hash(new_link) is False
+        assert fs.content_hash_check(new_link) is False
 
         link3 = fs.new_link("test123", "ext2")
         link3.set_properties(
             {LinkInterface.property_content_hash: fs.generate_content_hash("a1234")}
         )
         fs.put(link3, "a1234")
-        assert fs.check_hash(link3) is True
+        assert fs.content_hash_check(link3) is True
 
 
 def test_generate_content_hash():
-    assert (
-        FileStorage.generate_content_hash("a1234")
-        == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
-    )
-    assert (
-        FileStorage.generate_content_hash(bytes("a1234", "utf-8"))
-        == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
-    )
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        assert (
+            fs.generate_content_hash("a1234")
+            == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
+        )
+        assert (
+            fs.generate_content_hash(bytes("a1234", "utf-8"))
+            == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
+        )
