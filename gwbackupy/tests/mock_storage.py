@@ -115,6 +115,13 @@ class MockStorage(StorageInterface):
             links.append(d.get("link"))
         return LinkList(links)
 
+    def modify(self, link: MockLink, to_link: MockLink) -> bool:
+        for d in self.__objects:
+            if d.get("link") == link:
+                d.put("link", to_link)
+                return True
+        return False
+
     def inject_get_objects(self) -> list[dict[str, any]]:
         return self.__objects
 

@@ -3,6 +3,7 @@
 ## DEV
 
 - Bug: fix file storage new mutation as deleted with put fail error 
+- Enh #23: extend storage interface with modify
 
 # 0.8.0
 

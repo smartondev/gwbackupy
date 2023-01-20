@@ -153,3 +153,6 @@ class StorageInterface:
 
     def find(self, f: LinkFilter | None = None) -> LinkList[LinkInterface]:
         raise NotImplementedError("StorageInterface#find")
+
+    def modify(self, link: LinkInterface, to_link: LinkInterface) -> bool:
+        raise NotImplementedError("StorageInterface#modify")
