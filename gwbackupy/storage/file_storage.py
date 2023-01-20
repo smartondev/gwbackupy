@@ -316,9 +316,16 @@ class FileStorage(StorageInterface):
             raise
 
     @staticmethod
-    def generate_content_hash(b: IO[bytes]) -> str:
-        content = b.read()
-        result = hashlib.sha1(content)
+    def generate_content_hash(b: IO[bytes] | bytes | str) -> str:
+        if isinstance(b, bytes):
+            result = hashlib.sha1(b)
+        elif isinstance(b, str):
+            result = hashlib.sha1(bytes(b, "utf-8"))
+        elif isinstance(b, io.BufferedReader):
+            result = hashlib.sha1(b.read())
+        else:
+            raise NotImplementedError(f"Invalid type: {type(b)}")
+
         return result.hexdigest()
 
     @staticmethod
