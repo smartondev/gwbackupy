@@ -172,10 +172,10 @@ class FileStorage(StorageInterface):
         self.root = root
 
     def new_link(
-            self,
-            object_id: str,
-            extension: str,
-            created_timestamp: int | float | None = None,
+        self,
+        object_id: str,
+        extension: str,
+        created_timestamp: int | float | None = None,
     ) -> FileLink:
         link = FileLink()
         path = self.root
@@ -315,8 +315,7 @@ class FileStorage(StorageInterface):
     def content_hash_eq(self, link: FileLink, data: IO[bytes] | bytes | str) -> bool:
         if not link.has_property(LinkInterface.property_content_hash):
             return False
-        content_hash = self.generate_content_hash(data)
-        return content_hash == link.get_property(
+        return self.generate_content_hash(data) == link.get_property(
             LinkInterface.property_content_hash
         )
 
