@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import hashlib
 import io
 from datetime import datetime
@@ -123,11 +124,15 @@ class MockStorage(StorageInterface):
                 return True
         return False
 
-    def content_hash_add(self, link: LinkInterface) -> LinkInterface:
+    def content_hash_add(self, link: MockLink) -> MockLink:
         pass
 
-    def content_hash_check(self, link: LinkInterface) -> bool | None:
-        pass
+    def content_hash_check(self, link: MockLink) -> bool | None:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return None
+        with self.get(link) as f:
+            content = gzip.decompress(f.read())
+            return self.content_hash_eq(link, content)
 
     def content_hash_generate(self, data: IO[bytes] | bytes | str) -> str:
         return hashlib.sha1(self.data2bytes(data)).hexdigest().lower()
@@ -135,7 +140,11 @@ class MockStorage(StorageInterface):
     def content_hash_eq(
         self, link: LinkInterface, data: IO[bytes] | bytes | str
     ) -> bool:
-        pass
+        if not link.has_property(LinkInterface.property_content_hash):
+            return False
+        return link.get_property(
+            LinkInterface.property_content_hash
+        ) == self.content_hash_generate(data)
 
     def inject_get_objects(self) -> list[dict[str, any]]:
         return self.__objects
@@ -150,6 +159,8 @@ class MockStorage(StorageInterface):
         elif isinstance(data, str):
             return bytes(data, "utf-8")
         elif isinstance(data, io.BufferedReader):
+            return data.read()
+        elif isinstance(data, io.BytesIO):
             return data.read()
         elif callable(data):
             stream = io.BytesIO()
