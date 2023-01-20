@@ -326,7 +326,7 @@ class FileStorage(StorageInterface):
         else:
             raise NotImplementedError(f"Invalid type: {type(b)}")
 
-        return result.hexdigest()
+        return result.hexdigest().lower()
 
     @staticmethod
     def __remove(file_path: str) -> bool:

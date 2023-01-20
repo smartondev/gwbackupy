@@ -305,3 +305,14 @@ def test_content_hash():
         )
         fs.put(link3, "a1234")
         assert fs.check_hash(link3) is True
+
+
+def test_generate_content_hash():
+    assert (
+        FileStorage.generate_content_hash("a1234")
+        == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
+    )
+    assert (
+        FileStorage.generate_content_hash(bytes("a1234", "utf-8"))
+        == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
+    )
