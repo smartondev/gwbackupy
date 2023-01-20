@@ -80,7 +80,7 @@ class FileLink(LinkInterface):
         return self
 
     def get_file_path(self) -> str:
-        path = self.__path + "/" + self.__id
+        path = os.path.join(self.__path, self.__id)
         keys = list(self.__properties.keys())
         keys.sort()
         for k in keys:
@@ -241,7 +241,7 @@ class FileStorage(StorageInterface):
     def find(self, f: LinkFilter | None = None) -> LinkList[FileLink]:
         abspath = self.root
         skip_path = len(abspath)
-        result: LinkList[LinkInterface] = LinkList([])
+        result: LinkList[FileLink] = LinkList([])
         for _path, _, filenames in os.walk(abspath):
             for file in filenames:
                 file_path = os.path.join(_path, file)
@@ -271,6 +271,21 @@ class FileStorage(StorageInterface):
                 if f is None or f(link):
                     result.append(link)
         return result
+
+    def modify(self, link: FileLink, to_link: FileLink) -> bool:
+        if os.path.exists(to_link.get_file_path()):
+            logging.error(
+                f"Modify fail ({link.get_file_path()}): destination link already exists ({to_link.get_file_path()})"
+            )
+            return False
+        try:
+            shutil.move(link.get_file_path(), to_link.get_file_path())
+        except BaseException as e:
+            logging.exception(
+                f"File move fail: {e} ({link.get_file_path()} -> {to_link.get_file_path()})"
+            )
+            return False
+        return True
 
     @staticmethod
     def __remove(file_path: str) -> bool:

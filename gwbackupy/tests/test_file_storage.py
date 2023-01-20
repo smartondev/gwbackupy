@@ -245,3 +245,40 @@ def test_link_props():
         link.set_properties({LinkInterface.property_object: True}, replace=True)
         assert not link.is_metadata()
         assert link.is_object()
+
+
+def test_storage_modify():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        link = fs.new_link("test", "ext")
+        fs.put(link, "d1234")
+        link2 = fs.new_link("test", "ext2")
+        assert fs.modify(link, link2)
+        with fs.get(link2) as f:
+            assert f.read() == b"d1234"
+        try:
+            with fs.get(link) as f:
+                assert False
+        except FileNotFoundError:
+            assert True
+        links = fs.find()
+        assert len(links) == 1
+        assert links[0] == link2
+
+
+def test_storage_modify_fail():
+    with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
+        fs = FileStorage(root=temproot)
+        # not exists
+        link = fs.new_link("test", "ext")
+        print(link.get_file_path())
+        link2 = fs.new_link("test", "ext2")
+        print(link2.get_file_path())
+        assert not fs.modify(link, link2)
+        links = fs.find()
+        assert len(links) == 0
+
+        # already exists
+        fs.put(link, "d1")
+        fs.put(link2, "d2")
+        assert not fs.modify(link, link2)

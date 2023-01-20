@@ -24,6 +24,9 @@ def test_not_implemented_storage():
     e = get_exception(lambda: s.new_link("-", "-"))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#new_link"
+    e = get_exception(lambda: s.modify(LinkInterface(), LinkInterface()))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#modify"
 
 
 def test_not_implemented_link():
