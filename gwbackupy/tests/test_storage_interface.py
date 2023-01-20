@@ -27,12 +27,15 @@ def test_not_implemented_storage():
     e = get_exception(lambda: s.modify(MockLink(), MockLink()))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#modify"
-    e = get_exception(lambda: s.add_hash(MockLink()))
+    e = get_exception(lambda: s.content_hash_add(MockLink()))
     assert isinstance(e, NotImplementedError)
-    assert str(e) == "StorageInterface#add_hash"
-    e = get_exception(lambda: s.check_hash(MockLink()))
+    assert str(e) == "StorageInterface#content_hash_add"
+    e = get_exception(lambda: s.content_hash_check(MockLink()))
     assert isinstance(e, NotImplementedError)
-    assert str(e) == "StorageInterface#check_hash"
+    assert str(e) == "StorageInterface#content_hash_check"
+    e = get_exception(lambda: s.content_hash_eq(MockLink(), ""))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#content_hash_eq"
 
 
 def test_not_implemented_link():

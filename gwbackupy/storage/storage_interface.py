@@ -158,8 +158,12 @@ class StorageInterface:
     def modify(self, link: LinkInterface, to_link: LinkInterface) -> bool:
         raise NotImplementedError("StorageInterface#modify")
 
-    def add_hash(self, link: LinkInterface) -> LinkInterface:
-        raise NotImplementedError("StorageInterface#add_hash")
+    def content_hash_add(self, link: LinkInterface) -> LinkInterface:
+        raise NotImplementedError("StorageInterface#content_hash_add")
 
-    def check_hash(self, link: LinkInterface) -> bool | None:
-        raise NotImplementedError("StorageInterface#check_hash")
+    def content_hash_check(self, link: LinkInterface) -> bool | None:
+        raise NotImplementedError("StorageInterface#content_hash_check")
+
+    def content_hash_eq(self, link: LinkInterface, data: IO[bytes] | bytes | str) -> bool:
+        raise NotImplementedError("StorageInterface#content_hash_eq")
+

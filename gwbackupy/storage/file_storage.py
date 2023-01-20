@@ -172,10 +172,10 @@ class FileStorage(StorageInterface):
         self.root = root
 
     def new_link(
-        self,
-        object_id: str,
-        extension: str,
-        created_timestamp: int | float | None = None,
+            self,
+            object_id: str,
+            extension: str,
+            created_timestamp: int | float | None = None,
     ) -> FileLink:
         link = FileLink()
         path = self.root
@@ -288,10 +288,10 @@ class FileStorage(StorageInterface):
             return False
         return True
 
-    def add_hash(self, link: FileLink) -> FileLink:
+    def content_hash_add(self, link: FileLink) -> FileLink:
         try:
             with self.get(link) as f:
-                content_hash = FileStorage.generate_content_hash(f)
+                content_hash = self.generate_content_hash(f)
 
             to_link = copy.deepcopy(link)
             to_link.set_properties({LinkInterface.property_content_hash: content_hash})
@@ -302,21 +302,25 @@ class FileStorage(StorageInterface):
             logging.exception(f"File not found: {link.get_file_path()}")
             raise
 
-    def check_hash(self, link: FileLink) -> bool | None:
+    def content_hash_check(self, link: FileLink) -> bool | None:
         if not link.has_property(LinkInterface.property_content_hash):
             return None
         try:
             with self.get(link) as f:
-                content_hash = FileStorage.generate_content_hash(f)
-            return content_hash == link.get_property(
-                LinkInterface.property_content_hash
-            )
+                return self.content_hash_eq(link, f)
         except FileNotFoundError:
             logging.exception(f"File not found: {link.get_file_path()}")
             raise
 
-    @staticmethod
-    def generate_content_hash(b: IO[bytes] | bytes | str) -> str:
+    def content_hash_eq(self, link: FileLink, data: IO[bytes] | bytes | str) -> bool:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return False
+        content_hash = self.generate_content_hash(data)
+        return content_hash == link.get_property(
+            LinkInterface.property_content_hash
+        )
+
+    def generate_content_hash(self, b: IO[bytes] | bytes | str) -> str:
         if isinstance(b, bytes):
             result = hashlib.sha1(b)
         elif isinstance(b, str):
