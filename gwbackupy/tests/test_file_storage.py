@@ -1,4 +1,5 @@
 import datetime
+import io
 import os
 import tempfile
 import time
@@ -310,11 +311,14 @@ def test_content_hash():
 def test_generate_content_hash():
     with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
         fs = FileStorage(root=temproot)
-        assert (
-            fs.generate_content_hash("a1234")
-            == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
-        )
+        assert fs.generate_content_hash("a1234") == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         assert (
             fs.generate_content_hash(bytes("a1234", "utf-8"))
-            == "ebfd31053412f138d196c8d39cd79a2ed1464c50"
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+        )
+        link = fs.new_link("test", "ext")
+        fs.put(link, "a1234")
+        assert (
+            fs.generate_content_hash(fs.get(link))
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )

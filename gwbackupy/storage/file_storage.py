@@ -321,15 +321,15 @@ class FileStorage(StorageInterface):
 
     def generate_content_hash(self, b: IO[bytes] | bytes | str) -> str:
         if isinstance(b, bytes):
-            result = hashlib.sha1(b)
+            data = b
         elif isinstance(b, str):
-            result = hashlib.sha1(bytes(b, "utf-8"))
+            data = bytes(b, "utf-8")
         elif isinstance(b, io.BufferedReader):
-            result = hashlib.sha1(b.read())
+            data = b.read()
         else:
             raise NotImplementedError(f"Invalid type: {type(b)}")
 
-        return result.hexdigest().lower()
+        return "m" + hashlib.md5(data).hexdigest().lower()
 
     @staticmethod
     def __remove(file_path: str) -> bool:
