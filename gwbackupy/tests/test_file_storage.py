@@ -296,13 +296,13 @@ def test_content_hash():
         chash = new_link.get_property(LinkInterface.property_content_hash)
         assert chash is not None
         with fs.get(new_link) as f:
-            assert chash == fs.generate_content_hash(f)
+            assert chash == fs.content_hash_generate(f)
         fs.put(new_link, "a1234")
         assert fs.content_hash_check(new_link) is False
 
         link3 = fs.new_link("test123", "ext2")
         link3.set_properties(
-            {LinkInterface.property_content_hash: fs.generate_content_hash("a1234")}
+            {LinkInterface.property_content_hash: fs.content_hash_generate("a1234")}
         )
         fs.put(link3, "a1234")
         assert fs.content_hash_check(link3) is True
@@ -341,19 +341,19 @@ def test_content_hash_check_fail():
 def test_generate_content_hash():
     with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
         fs = FileStorage(root=temproot)
-        assert fs.generate_content_hash("a1234") == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+        assert fs.content_hash_generate("a1234") == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         assert (
-            fs.generate_content_hash(bytes("a1234", "utf-8"))
+            fs.content_hash_generate(bytes("a1234", "utf-8"))
             == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )
         link = fs.new_link("test", "ext")
         fs.put(link, "a1234")
         assert (
-            fs.generate_content_hash(fs.get(link))
+            fs.content_hash_generate(fs.get(link))
             == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )
         try:
-            fs.generate_content_hash({})
+            fs.content_hash_generate({})
             assert False
         except RuntimeError as e:
             assert str(e).startswith("Invalid type: ")

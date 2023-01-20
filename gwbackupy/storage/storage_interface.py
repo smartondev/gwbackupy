@@ -168,3 +168,6 @@ class StorageInterface:
         self, link: LinkInterface, data: IO[bytes] | bytes | str
     ) -> bool:
         raise NotImplementedError("StorageInterface#content_hash_eq")
+
+    def content_hash_generate(self, data: IO[bytes] | bytes | str) -> bool:
+        raise NotImplementedError("StorageInterface#content_hash_generate")

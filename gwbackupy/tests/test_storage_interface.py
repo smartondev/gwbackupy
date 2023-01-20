@@ -36,6 +36,9 @@ def test_not_implemented_storage():
     e = get_exception(lambda: s.content_hash_eq(MockLink(), ""))
     assert isinstance(e, NotImplementedError)
     assert str(e) == "StorageInterface#content_hash_eq"
+    e = get_exception(lambda: s.content_hash_generate(""))
+    assert isinstance(e, NotImplementedError)
+    assert str(e) == "StorageInterface#content_hash_generate"
 
 
 def test_not_implemented_link():

@@ -291,7 +291,7 @@ class FileStorage(StorageInterface):
     def content_hash_add(self, link: FileLink) -> FileLink:
         try:
             with self.get(link) as f:
-                content_hash = self.generate_content_hash(f)
+                content_hash = self.content_hash_generate(f)
 
             to_link = copy.deepcopy(link)
             to_link.set_properties({LinkInterface.property_content_hash: content_hash})
@@ -315,11 +315,11 @@ class FileStorage(StorageInterface):
     def content_hash_eq(self, link: FileLink, data: IO[bytes] | bytes | str) -> bool:
         if not link.has_property(LinkInterface.property_content_hash):
             return False
-        return self.generate_content_hash(data) == link.get_property(
+        return self.content_hash_generate(data) == link.get_property(
             LinkInterface.property_content_hash
         )
 
-    def generate_content_hash(self, b: IO[bytes] | bytes | str) -> str:
+    def content_hash_generate(self, b: IO[bytes] | bytes | str) -> str:
         if isinstance(b, bytes):
             data = b
         elif isinstance(b, str):
