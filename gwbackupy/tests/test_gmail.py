@@ -52,6 +52,8 @@ def test_server_backup_one_message():
                 with ms.get(link) as f:
                     assert message_raw == gzip.decompress(f.read())
                 assert link.has_property(LinkInterface.property_content_hash)
-                assert ms.content_hash_generate(message_raw) == link.get_property(LinkInterface.property_content_hash)
+                assert ms.content_hash_generate(message_raw) == link.get_property(
+                    LinkInterface.property_content_hash
+                )
     assert message_meta_found
     assert message_body_found
