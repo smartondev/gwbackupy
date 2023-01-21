@@ -156,18 +156,33 @@ class StorageInterface:
         raise NotImplementedError("StorageInterface#find")
 
     def modify(self, link: LinkInterface, to_link: LinkInterface) -> bool:
+        """
+        modify link to a new link
+        """
         raise NotImplementedError("StorageInterface#modify")
 
     def content_hash_add(self, link: LinkInterface) -> LinkInterface:
+        """
+        Add content hash to link, and return with the new link
+        """
         raise NotImplementedError("StorageInterface#content_hash_add")
 
     def content_hash_check(self, link: LinkInterface) -> bool | None:
+        """
+        Check content hash on link. If link not contain content hash then return None else return equality
+        """
         raise NotImplementedError("StorageInterface#content_hash_check")
 
     def content_hash_eq(
         self, link: LinkInterface, data: IO[bytes] | bytes | str
     ) -> bool:
+        """
+        Check content hash equality. If the link is not contain content hash then return False.
+        """
         raise NotImplementedError("StorageInterface#content_hash_eq")
 
     def content_hash_generate(self, data: IO[bytes] | bytes | str) -> str:
+        """
+        Generate content hash from input data
+        """
         raise NotImplementedError("StorageInterface#content_hash_generate")
