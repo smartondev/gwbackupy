@@ -256,9 +256,6 @@ class FileStorage(StorageInterface):
                 m["path"] = _path
                 link.fill(m)
 
-                if "extension" not in m:
-                    logging.debug(f"Unknown file without extension: {file_path}")
-                    continue
                 if m["extension"] == "tmp":
                     logging.debug(f"Temporary file {file_path}, remove it")
                     try:
