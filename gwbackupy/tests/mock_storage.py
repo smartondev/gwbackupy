@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import gzip
+import hashlib
 import io
 from datetime import datetime
 from typing import IO
@@ -43,12 +45,15 @@ class MockLink(LinkInterface):
             return True
         return False
 
-    def set_properties(self, sets: dict[str, any], replace: bool = False) -> FileLink:
+    def set_properties(self, sets: dict[str, any], replace: bool = False) -> MockLink:
         if replace:
             self.__properties = sets
             return self
         for k, v in sets.items():
-            self.__properties[k] = v
+            if k in self.__properties and v is None:
+                del self.__properties[k]
+            else:
+                self.__properties[k] = v
         return self
 
     def is_deleted(self) -> bool:
@@ -118,9 +123,31 @@ class MockStorage(StorageInterface):
     def modify(self, link: MockLink, to_link: MockLink) -> bool:
         for d in self.__objects:
             if d.get("link") == link:
-                d.put("link", to_link)
+                d["link"] = to_link
                 return True
         return False
+
+    def content_hash_add(self, link: MockLink) -> MockLink:
+        pass
+
+    def content_hash_check(self, link: MockLink) -> bool | None:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return None
+        with self.get(link) as f:
+            content = gzip.decompress(f.read())
+            return self.content_hash_eq(link, content)
+
+    def content_hash_generate(self, data: IO[bytes] | bytes | str) -> str:
+        return hashlib.sha1(self.data2bytes(data)).hexdigest().lower()
+
+    def content_hash_eq(
+        self, link: LinkInterface, data: IO[bytes] | bytes | str
+    ) -> bool:
+        if not link.has_property(LinkInterface.property_content_hash):
+            return False
+        return link.get_property(
+            LinkInterface.property_content_hash
+        ) == self.content_hash_generate(data)
 
     def inject_get_objects(self) -> list[dict[str, any]]:
         return self.__objects
@@ -135,6 +162,8 @@ class MockStorage(StorageInterface):
         elif isinstance(data, str):
             return bytes(data, "utf-8")
         elif isinstance(data, io.BufferedReader):
+            return data.read()
+        elif isinstance(data, io.BytesIO):
             return data.read()
         elif callable(data):
             stream = io.BytesIO()

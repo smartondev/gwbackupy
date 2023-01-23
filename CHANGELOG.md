@@ -4,6 +4,7 @@
 
 - Bug: fix file storage new mutation as deleted with put fail error 
 - Enh #23: extend storage interface with modify
+- Enh #56: content hash added to gmail message objects
 
 # 0.8.0
 

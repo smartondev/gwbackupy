@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import collections
 import concurrent.futures
+import copy
 import gzip
 import json
 import logging
@@ -76,7 +77,14 @@ class Gmail:
         logging.debug("Store message {id}".format(id=message_id))
         link = self.storage.new_link(
             object_id=message_id, extension="eml.gz", created_timestamp=create_timestamp
-        ).set_properties({LinkInterface.property_object: True})
+        ).set_properties(
+            {
+                LinkInterface.property_object: True,
+                LinkInterface.property_content_hash: self.storage.content_hash_generate(
+                    raw_message
+                ),
+            }
+        )
         result = self.__storage_put(
             link, data=gzip.compress(raw_message, compresslevel=9)
         )
@@ -84,6 +92,23 @@ class Gmail:
             logging.info(f"{message_id} message is saved")
         else:
             raise Exception("Mail message save failed")
+
+    def __fix_content_hash_to_message_object(
+        self, message_id: str, link: LinkInterface
+    ) -> LinkInterface:
+        if link.get_property(LinkInterface.property_content_hash) is not None:
+            return link
+        logging.debug(f"{message_id} message object not has content hash, add it")
+        with self.storage.get(link) as mf:
+            message_content = gzip.decompress(mf.read())
+            content_hash = self.storage.content_hash_generate(message_content)
+        new_object_link = copy.deepcopy(link)
+        new_object_link.set_properties(
+            {LinkInterface.property_content_hash: content_hash}
+        )
+        self.storage.modify(link, new_object_link)
+        logging.debug(f"{message_id} message object is signed by content hash")
+        return new_object_link
 
     def __backup_messages(
         self, message, stored_messages: dict[str, dict[int, LinkInterface]]
@@ -102,6 +127,11 @@ class Gmail:
             # TODO: option for force raw mode
             message_format = "raw"
             if not is_new and stored_messages[message_id][1] is not None:
+                stored_messages[message_id][
+                    1
+                ] = self.__fix_content_hash_to_message_object(
+                    message_id, stored_messages[message_id][1]
+                )
                 message_format = "minimal"
             data = self.__get_message_from_server(message_id, message_format)
             if data is None:
