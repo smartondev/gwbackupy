@@ -6,7 +6,8 @@
 - Enh #23: extend storage interface with modify
 - Enh #56: content hash added to gmail message objects
 - Enh #61: separated OAuth token storage - RENEWAL OF OAUTH AUTHENTICATION IS REQUIRED 
-- Enh #59: OAuth initialization for gmail
+- Enh #59: Access initialization for gmail e.g. OAuth authentication
+- Enh #60: Access check e.g. OAuth authentication
 
 # 0.8.0
 

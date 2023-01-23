@@ -23,6 +23,10 @@ from gwbackupy.storage.storage_interface import (
 )
 
 
+class AccessNotInitializedError(Exception):
+    pass
+
+
 class GapiServiceProvider(ServiceProviderInterface):
     object_id_token = LinkInterface.id_special_prefix + "token--"
     """object ID for access token save and load"""
@@ -62,7 +66,7 @@ class GapiServiceProvider(ServiceProviderInterface):
                 return
             self.services[email].append(service)
 
-    def get_service(self, email: str):
+    def get_service(self, email: str, access_init: bool = True):
         service = None
         with self.tlock:
             if email not in self.services.keys():
@@ -73,7 +77,9 @@ class GapiServiceProvider(ServiceProviderInterface):
             if service is None:
                 logging.debug("Create new service")
                 if self.credentials_file_path is not None:
-                    credentials = self.__get_credentials_by_oauth(email)
+                    credentials = self.__get_credentials_by_oauth(
+                        email, access_init=access_init
+                    )
                 elif self.service_account_file_path is not None:
                     credentials = self.__get_credentials_by_service_account(email)
                 else:
@@ -114,7 +120,7 @@ class GapiServiceProvider(ServiceProviderInterface):
         credentials = credentials.create_delegated(email)
         return credentials
 
-    def __get_credentials_by_oauth(self, email: str):
+    def __get_credentials_by_oauth(self, email: str, access_init: bool = True):
         """Get credentials object from OAuth access. This method store token and reuse/refresh if required"""
         credentials = None
         fd, temp = tempfile.mkstemp()
@@ -137,6 +143,8 @@ class GapiServiceProvider(ServiceProviderInterface):
                     credentials = None
             if not credentials:
                 logging.debug("Credentials not found")
+                if not access_init:
+                    raise AccessNotInitializedError()
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file_path,
                     self.scopes,
