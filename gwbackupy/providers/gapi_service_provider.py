@@ -143,7 +143,9 @@ class GapiServiceProvider(ServiceProviderInterface):
                     self.credentials_file_path,
                     self.scopes,
                 )
-                credentials = flow.run_local_server(port=0, access_type="offline")
+                credentials = flow.run_local_server(
+                    port=0, access_type="offline", include_granted_scopes=True
+                )
 
             token_link_new = self.storage.new_link(
                 GapiServiceProvider.object_id_token, "json"
