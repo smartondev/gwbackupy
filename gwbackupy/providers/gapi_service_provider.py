@@ -32,10 +32,10 @@ class GapiServiceProvider(ServiceProviderInterface):
         service_name: str,
         version: str,
         scopes: [str],
+        storage: StorageInterface,
         credentials_file_path: str | None = None,
         service_account_file_path: str | None = None,
         service_account_email: str | None = None,
-        storage: StorageInterface | None = None,
     ):
         self.service_name = service_name
         self.version = version
@@ -46,7 +46,12 @@ class GapiServiceProvider(ServiceProviderInterface):
         self.storage = storage
         self.tlock = threading.RLock()
         self.services: dict[str, list[any]] = dict()
-        self.credentials_token_links: dict[str, LinkInterface] = dict()
+        self.credentials_token_links: dict[
+            str, LinkInterface
+        ] = self.storage.find().find(
+            f=lambda l: l.id() == GapiServiceProvider.object_id_token,
+            g=lambda l: [l.get_properties().get("email", "")],
+        )
 
     def release_service(self, email: str, service):
         logging.debug(f"Release service ({email})")
@@ -81,13 +86,6 @@ class GapiServiceProvider(ServiceProviderInterface):
                     credentials=credentials,
                 )
         return ServiceItem(self, email, service)
-
-    def storage_links(self, links: LinkList):
-        """Filter stored tokens for OAuth authentication"""
-        self.credentials_token_links = links.find(
-            f=lambda l: l.id() == GapiServiceProvider.object_id_token,
-            g=lambda l: [l.get_properties().get("email", "")],
-        )
 
     def __get_credentials_by_service_account(self, email: str):
         """get credentials by service account access"""
@@ -143,7 +141,9 @@ class GapiServiceProvider(ServiceProviderInterface):
                     self.credentials_file_path,
                     self.scopes,
                 )
-                credentials = flow.run_local_server(port=0, access_type="offline")
+                credentials = flow.run_local_server(
+                    port=0, access_type="offline", include_granted_scopes="true"
+                )
 
             token_link_new = self.storage.new_link(
                 GapiServiceProvider.object_id_token, "json"

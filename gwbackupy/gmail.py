@@ -253,7 +253,6 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.__service_wrapper.get_service_provider().storage_links(stored_data_all)
 
         labels_link = stored_data_all.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata
@@ -528,7 +527,6 @@ class Gmail:
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
-        self.__service_wrapper.get_service_provider().storage_links(stored_data_all)
 
         latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
