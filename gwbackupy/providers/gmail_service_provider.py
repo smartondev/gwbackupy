@@ -9,10 +9,10 @@ class GmailServiceProvider(GapiServiceProvider):
 
     def __init__(
         self,
+        storage: StorageInterface,
         credentials_file_path: str | None = None,
         service_account_file_path: str | None = None,
         service_account_email: str | None = None,
-        storage: StorageInterface | None = None,
     ):
         super().__init__(
             "gmail",

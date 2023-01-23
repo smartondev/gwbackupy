@@ -170,11 +170,12 @@ def cli_startup():
         args = parse_arguments()
         if args.service == "gmail":
             storage = FileStorage(args.workdir + "/" + args.email + "/gmail")
+            storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")
             service_provider = GmailServiceProvider(
                 credentials_file_path=args.credentials_filepath,
                 service_account_email=args.service_account_email,
                 service_account_file_path=args.service_account_key_filepath,
-                storage=storage,
+                storage=storage_oauth_tokens,
             )
             service_wrapper = GapiGmailServiceWrapper(
                 service_provider=service_provider,
