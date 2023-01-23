@@ -11,6 +11,7 @@ from gwbackupy.filters.gmail_filter import GmailFilter
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import parse_date
 from gwbackupy.providers.gapi_gmail_service_wrapper import GapiGmailServiceWrapper
+from gwbackupy.providers.gapi_service_provider import AccessNotInitializedError
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.storage.file_storage import FileStorage
 
@@ -86,9 +87,15 @@ def parse_arguments() -> argparse.Namespace:
     gmail_command_parser = gmail_parser.add_subparsers(dest="command")
 
     gmail_oauth_init_parser = gmail_command_parser.add_parser(
-        "oauth-init", help="OAuth initialization"
+        "access-init", help="Access initialization e.g. OAuth authentication"
     )
     gmail_oauth_init_parser.add_argument(
+        "--email", type=str, help="Email account", required=True
+    )
+    gmail_oauth_check_parser = gmail_command_parser.add_parser(
+        "access-check", help="Check access e.g. OAuth tokens"
+    )
+    gmail_oauth_check_parser.add_argument(
         "--email", type=str, help="Email account", required=True
     )
 
@@ -195,8 +202,14 @@ def cli_startup():
                 storage=storage,
                 dry_mode=args.dry,
             )
-            if args.command == "oauth-init":
+            if args.command == "access-init":
                 service_wrapper.get_labels(args.email)
+            elif args.command == "access-check":
+                try:
+                    with service_provider.get_service(args.email, False) as s:
+                        service_wrapper.get_labels(args.email)
+                except AccessNotInitializedError:
+                    exit(1)
             elif args.command == "backup":
                 if gmail.backup(quick_sync_days=args.quick_sync_days):
                     exit(0)

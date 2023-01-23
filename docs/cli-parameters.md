@@ -42,3 +42,9 @@ Currently only `gmail` is supported.
 but no longer on the server, but the backup has not been run yet, so its status has not been deleted.
 The deleted message when the backup detected the deletion of the message
 on the server and marked it in the local storage.*
+
+#### `access-init` and `access-check` commands
+
+| parameter            | type             | description                            |
+|----------------------|------------------|----------------------------------------|
+| `--email`            | string           | email account for check or init access |
