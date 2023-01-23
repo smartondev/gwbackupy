@@ -85,6 +85,13 @@ def parse_arguments() -> argparse.Namespace:
     gmail_parser = service_parser.add_parser("gmail", help="GMail service commands")
     gmail_command_parser = gmail_parser.add_subparsers(dest="command")
 
+    gmail_oauth_init_parser = gmail_command_parser.add_parser(
+        "oauth-init", help="OAuth initialization"
+    )
+    gmail_oauth_init_parser.add_argument(
+        "--email", type=str, help="Email account", required=True
+    )
+
     gmail_backup_parser = gmail_command_parser.add_parser("backup", help="Backup gmail")
     gmail_backup_parser.add_argument(
         "--email", type=str, help="Email of the account", required=True
@@ -188,12 +195,14 @@ def cli_startup():
                 storage=storage,
                 dry_mode=args.dry,
             )
-            if args.command == "backup":
+            if args.command == "oauth-init":
+                service_wrapper.get_labels(args.email)
+            elif args.command == "backup":
                 if gmail.backup(quick_sync_days=args.quick_sync_days):
                     exit(0)
                 else:
                     exit(1)
-            if args.command == "restore":
+            elif args.command == "restore":
                 if args.add_labels is None:
                     args.add_labels = ["gwbackupy"]
                 item_filter = GmailFilter()
