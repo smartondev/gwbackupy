@@ -2,13 +2,14 @@
 
 ## DEV
 
+- Enh: OAuth parameters added (`--oauth-port`, `--oauth-bind-address`, `--oauth-redirect-host`)
 
 ## 0.9.0
 
-- Bug: fix file storage new mutation as deleted with put fail error 
+- Bug: fix file storage new mutation as deleted with put fail error
 - Enh #23: extend storage interface with modify
 - Enh #56: content hash added to gmail message objects
-- Enh #61: separated OAuth token storage - RENEWAL OF OAUTH AUTHENTICATION IS REQUIRED 
+- Enh #61: separated OAuth token storage - RENEWAL OF OAUTH AUTHENTICATION IS REQUIRED
 - Enh #59: Access initialization for gmail e.g. OAuth authentication
 - Enh #60: Access check e.g. OAuth authentication
 
