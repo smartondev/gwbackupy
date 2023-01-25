@@ -155,15 +155,6 @@ class GapiServiceProvider(ServiceProviderInterface):
                     self.credentials_file_path,
                     self.scopes,
                 )
-                print(
-                    {
-                        "access_type": "offline",
-                        "include_granted_scopes": "true",
-                        "bind_addr": self.oauth_bind_addr,
-                        "port": self.oauth_port,
-                        "host": self.oauth_redirect_host,
-                    }
-                )
                 credentials = flow.run_local_server(
                     access_type="offline",
                     include_granted_scopes="true",
