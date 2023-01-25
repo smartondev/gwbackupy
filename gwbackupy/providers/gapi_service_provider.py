@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import socket
 import tempfile
 import threading
 
@@ -12,6 +13,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from oauth2client.service_account import ServiceAccountCredentials
 
+from gwbackupy.helpers import random_string
 from gwbackupy.providers.service_provider_interface import (
     ServiceProviderInterface,
     ServiceItem,
@@ -32,17 +34,17 @@ class GapiServiceProvider(ServiceProviderInterface):
     """object ID for access token save and load"""
 
     def __init__(
-        self,
-        service_name: str,
-        version: str,
-        scopes: [str],
-        storage: StorageInterface,
-        credentials_file_path: str | None = None,
-        service_account_file_path: str | None = None,
-        service_account_email: str | None = None,
-        oauth_bind_addr: str = "0.0.0.0",
-        oauth_port: int = 0,
-        oauth_redirect_host: str = "localhost",
+            self,
+            service_name: str,
+            version: str,
+            scopes: [str],
+            storage: StorageInterface,
+            credentials_file_path: str | None = None,
+            service_account_file_path: str | None = None,
+            service_account_email: str | None = None,
+            oauth_bind_addr: str = "0.0.0.0",
+            oauth_port: int = 0,
+            oauth_redirect_host: str = "localhost",
     ):
         self.service_name = service_name
         self.version = version
@@ -104,8 +106,8 @@ class GapiServiceProvider(ServiceProviderInterface):
         extension = self.service_account_file_path.split(".")[-1].lower()
         if extension == "p12":
             if (
-                self.service_account_email is None
-                or self.service_account_email.strip() == ""
+                    self.service_account_email is None
+                    or self.service_account_email.strip() == ""
             ):
                 raise Exception("Service account email is required for p12 keyfile")
             credentials = ServiceAccountCredentials.from_p12_keyfile(
@@ -161,6 +163,8 @@ class GapiServiceProvider(ServiceProviderInterface):
                     bind_addr=self.oauth_bind_addr,
                     port=self.oauth_port,
                     host=self.oauth_redirect_host,
+                    device_id=random_string(16),
+                    device_name=socket.gethostname(),
                 )
 
             token_link_new = self.storage.new_link(
