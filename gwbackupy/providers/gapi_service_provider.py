@@ -40,6 +40,9 @@ class GapiServiceProvider(ServiceProviderInterface):
         credentials_file_path: str | None = None,
         service_account_file_path: str | None = None,
         service_account_email: str | None = None,
+        oauth_bind_addr: str = "0.0.0.0",
+        oauth_port: int = 0,
+        oauth_redirect_host: str = "localhost",
     ):
         self.service_name = service_name
         self.version = version
@@ -56,6 +59,9 @@ class GapiServiceProvider(ServiceProviderInterface):
             f=lambda l: l.id() == GapiServiceProvider.object_id_token,
             g=lambda l: [l.get_properties().get("email", "")],
         )
+        self.oauth_bind_addr = oauth_bind_addr
+        self.oauth_port = oauth_port
+        self.oauth_redirect_host = oauth_redirect_host
 
     def release_service(self, email: str, service):
         logging.debug(f"Release service ({email})")
@@ -150,7 +156,11 @@ class GapiServiceProvider(ServiceProviderInterface):
                     self.scopes,
                 )
                 credentials = flow.run_local_server(
-                    port=0, access_type="offline", include_granted_scopes="true"
+                    access_type="offline",
+                    include_granted_scopes="true",
+                    bind_addr=self.oauth_bind_addr,
+                    port=self.oauth_port,
+                    host=self.oauth_redirect_host,
                 )
 
             token_link_new = self.storage.new_link(

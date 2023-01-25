@@ -1,16 +1,19 @@
 # CLI parameters
 
-| parameter                        | type     | description                                                                                       |
-|----------------------------------|----------|---------------------------------------------------------------------------------------------------|
-| `--log-level`                    | string   | Set logging level: `finest`, `debug`, `info` (default), `error`, `critical`                       |
-| `--batch-size`                   | integer  | Concurrent threads count, default: 5                                                              |
-| `--service-account-key-filepath` | filepath | JSON or P12 service account file path, see more [Service Account Setup](service-account-setup.md) |
-| `--service-account-email`        | string   | Service account email address, required only for P12 type                                         |
-| `--credentials-filepath`         | string   | OAUTH credentials json, see more [OAuth setup](oauth-setup.md)                                    |
-| `--timzone`                      | string   | Timezone                                                                                          |
-| `--workdir`                      | string   | Storage directory path, default: `./data`                                                         |
-| `--dry`                          |          | Dry mode (not modify on server, not modify in local storage)                                      |
-| `<service>`                      | service  | Service ID, eg. gmail                                                                             |
+| parameter                        | type     | description                                                                                                                                                                                  |
+|----------------------------------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--log-level`                    | string   | Set logging level: `finest`, `debug`, `info` (default), `error`, `critical`                                                                                                                  |
+| `--batch-size`                   | integer  | Concurrent threads count, default: 5                                                                                                                                                         |
+| `--service-account-key-filepath` | filepath | JSON or P12 service account file path, see more [Service Account Setup](service-account-setup.md)                                                                                            |
+| `--service-account-email`        | string   | Service account email address, required only for P12 type                                                                                                                                    |
+| `--credentials-filepath`         | string   | OAUTH credentials json, see more [OAuth setup](oauth-setup.md)                                                                                                                               |
+| `--timzone`                      | string   | Timezone                                                                                                                                                                                     |
+| `--workdir`                      | string   | Storage directory path, default: `./data`                                                                                                                                                    |
+| `--dry`                          |          | Dry mode (not modify on server, not modify in local storage)                                                                                                                                 |
+| `--oauth-bind-address`           | string   | OAuth bind address, default is `0.0.0.0`. See more [google_auth_oauthlib.flow](https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html)               |
+| `--oauth-port`                   | int      | OAuth port, default is `0` (random). See more [google_auth_oauthlib.flow](https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html)                    |
+| `--oauth-redirect-host`          | string   | OAuth redirect host, default is `localhost`. See more . See more [google_auth_oauthlib.flow](https://google-auth-oauthlib.readthedocs.io/en/latest/reference/google_auth_oauthlib.flow.html) |
+| `<service>`                      | service  | Service ID, eg. gmail                                                                                                                                                                        |
 
 ## `service` types
 
@@ -45,6 +48,6 @@ on the server and marked it in the local storage.*
 
 #### `access-init` and `access-check` commands
 
-| parameter            | type             | description                            |
-|----------------------|------------------|----------------------------------------|
-| `--email`            | string           | email account for check or init access |
+| parameter | type   | description                            |
+|-----------|--------|----------------------------------------|
+| `--email` | string | email account for check or init access |
