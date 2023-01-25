@@ -82,6 +82,27 @@ def parse_arguments() -> argparse.Namespace:
         required=False,
         default="./data",
     )
+    parser.add_argument(
+        "--oauth-bind-address",
+        type=str,
+        required=False,
+        default="0.0.0.0",
+        help="OAuth binding address, default is 0.0.0.0",
+    )
+    parser.add_argument(
+        "--oauth-port",
+        type=int,
+        required=False,
+        default=0,
+        help="OAuth port, default is 0 (random)",
+    )
+    parser.add_argument(
+        "--oauth-redirect-host",
+        type=str,
+        required=False,
+        default="localhost",
+        help="OAuth redirect host, default is localhost",
+    )
     service_parser = parser.add_subparsers(dest="service")
     gmail_parser = service_parser.add_parser("gmail", help="GMail service commands")
     gmail_command_parser = gmail_parser.add_subparsers(dest="command")
@@ -190,6 +211,9 @@ def cli_startup():
                 service_account_email=args.service_account_email,
                 service_account_file_path=args.service_account_key_filepath,
                 storage=storage_oauth_tokens,
+                oauth_bind_addr=args.oauth_bind_address,
+                oauth_port=args.oauth_port,
+                oauth_redirect_host=args.oauth_redirect_host,
             )
             service_wrapper = GapiGmailServiceWrapper(
                 service_provider=service_provider,
