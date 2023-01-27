@@ -162,6 +162,7 @@ class GapiServiceProvider(ServiceProviderInterface):
                     bind_addr=self.oauth_bind_addr,
                     port=self.oauth_port,
                     host=self.oauth_redirect_host,
+                    timeout_seconds=300,
                 )
 
             token_link_new = self.storage.new_link(
