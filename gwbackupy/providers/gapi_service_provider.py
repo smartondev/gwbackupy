@@ -42,6 +42,7 @@ class GapiServiceProvider(ServiceProviderInterface):
         oauth_bind_addr: str = "0.0.0.0",
         oauth_port: int = 0,
         oauth_redirect_host: str = "localhost",
+        verify_email: bool = True,
     ):
         self.service_name = service_name
         self.version = version
@@ -61,6 +62,7 @@ class GapiServiceProvider(ServiceProviderInterface):
         self.oauth_bind_addr = oauth_bind_addr
         self.oauth_port = oauth_port
         self.oauth_redirect_host = oauth_redirect_host
+        self.verify_email = verify_email
 
     def release_service(self, email: str, service):
         logging.debug(f"{email} Release service")
@@ -152,9 +154,15 @@ class GapiServiceProvider(ServiceProviderInterface):
                 logging.debug("{email} Credentials not found")
                 if not access_init:
                     raise AccessNotInitializedError()
+                requests_scope = self.scopes.copy()
+                if self.verify_email:
+                    requests_scope.append(
+                        "https://www.googleapis.com/auth/userinfo.email"
+                    )
+                    requests_scope.append("openid")
                 flow = InstalledAppFlow.from_client_secrets_file(
                     self.credentials_file_path,
-                    self.scopes,
+                    requests_scope,
                 )
                 credentials = flow.run_local_server(
                     access_type="offline",
@@ -164,6 +172,10 @@ class GapiServiceProvider(ServiceProviderInterface):
                     host=self.oauth_redirect_host,
                     timeout_seconds=300,
                 )
+                if self.verify_email:
+                    auth_email = self.__oauth_get_email(credentials)
+                    if auth_email != email:
+                        raise ValueError(f"{email} vs {auth_email} mismatch")
 
             token_link_new = self.storage.new_link(
                 GapiServiceProvider.object_id_token, "json"
@@ -184,3 +196,15 @@ class GapiServiceProvider(ServiceProviderInterface):
                     else:
                         logging.warning(f"{email} Old token removed fail")
         return credentials
+
+    def __oauth_get_email(self, credentials) -> str:
+        try:
+            service = build(
+                "oauth2",
+                "v2",
+                credentials=credentials,
+            )
+            user_info = service.userinfo().get().execute()
+            return user_info.get("email")
+        except BaseException as e:
+            raise Exception(f"Could not retrieve user email") from e

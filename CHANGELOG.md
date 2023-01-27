@@ -3,6 +3,7 @@
 ## DEV
 
 - Enh: OAuth parameters added (`--oauth-port`, `--oauth-bind-address`, `--oauth-redirect-host`)
+- Enh #66: OAuth check authenticated email matches
 
 ## 0.9.0
 
