@@ -78,6 +78,10 @@ pip install -r requirements.txt
 python3 -m gwbackupy ...
 ```
 
+The project also has an official [Docker](https://www.docker.com/) image: 
+[gwbackupy-docker](https://github.com/smartondev/gwbackupy-docker) - **under development**.
+The docker image has scheduled backup runs and also supports managing multiple email accounts.
+
 ## Instructions
 
 - [GCP OAUTH access setup](docs/oauth-setup.md)
