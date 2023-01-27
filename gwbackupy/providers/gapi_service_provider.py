@@ -19,7 +19,6 @@ from gwbackupy.providers.service_provider_interface import (
 from gwbackupy.storage.storage_interface import (
     LinkInterface,
     StorageInterface,
-    LinkList,
 )
 
 
@@ -64,7 +63,7 @@ class GapiServiceProvider(ServiceProviderInterface):
         self.oauth_redirect_host = oauth_redirect_host
 
     def release_service(self, email: str, service):
-        logging.debug(f"Release service ({email})")
+        logging.debug(f"{email} Release service")
         if service is None:
             return
         with self.tlock:
@@ -78,10 +77,10 @@ class GapiServiceProvider(ServiceProviderInterface):
             if email not in self.services.keys():
                 self.services[email] = []
             if len(self.services[email]) > 0:
-                logging.debug(f"Reuse service ({email})")
+                logging.debug(f"{email} Reuse service")
                 service = self.services[email].pop()
             if service is None:
-                logging.debug("Create new service")
+                logging.debug(f"{email} Create new service")
                 if self.credentials_file_path is not None:
                     credentials = self.__get_credentials_by_oauth(
                         email, access_init=access_init
@@ -89,9 +88,9 @@ class GapiServiceProvider(ServiceProviderInterface):
                 elif self.service_account_file_path is not None:
                     credentials = self.__get_credentials_by_service_account(email)
                 else:
-                    raise Exception(f"Not supported credentials")
+                    raise Exception(f"{email} Not supported credentials")
                 if not credentials:
-                    raise Exception(f"Credentials cannot be None")
+                    raise Exception(f"{email} Credentials cannot be None")
                 service = build(
                     self.service_name,
                     self.version,
@@ -107,7 +106,9 @@ class GapiServiceProvider(ServiceProviderInterface):
                 self.service_account_email is None
                 or self.service_account_email.strip() == ""
             ):
-                raise Exception("Service account email is required for p12 keyfile")
+                raise Exception(
+                    f"{email} Service account email is required for p12 keyfile"
+                )
             credentials = ServiceAccountCredentials.from_p12_keyfile(
                 self.service_account_email,
                 self.service_account_file_path,
@@ -121,7 +122,7 @@ class GapiServiceProvider(ServiceProviderInterface):
             )
             pass
         else:
-            raise Exception(f"Not supported service account file extension")
+            raise Exception(f"{email} Not supported service account file extension")
 
         credentials = credentials.create_delegated(email)
         return credentials
@@ -132,23 +133,23 @@ class GapiServiceProvider(ServiceProviderInterface):
         fd, temp = tempfile.mkstemp()
         email_md5 = hashlib.md5(email.encode("utf-8")).hexdigest().lower()
         if email_md5 in self.credentials_token_links:
-            logging.debug("Try to load previously saved token")
+            logging.debug(f"{email} Try to load previously saved token")
             token_link = self.credentials_token_links.get(email_md5)
             with self.storage.get(token_link) as tf:
                 with open(temp, "wb") as tfo:
                     tfo.write(tf.read())
             credentials = Credentials.from_authorized_user_file(temp)
         if not credentials or not credentials.valid:
-            logging.debug("Credentials not found or not valid")
+            logging.debug(f"{email} Credentials not found or not valid")
             if credentials and credentials.expired and credentials.refresh_token:
-                logging.debug("Try to refresh token")
+                logging.debug(f"{email} Try to refresh token")
                 try:
                     credentials.refresh(Request())
                 except RefreshError as e:
-                    logging.exception(f"Failed to refresh token: {e}")
+                    logging.exception(f"{email} Failed to refresh token: {e}")
                     credentials = None
             if not credentials:
-                logging.debug("Credentials not found")
+                logging.debug("{email} Credentials not found")
                 if not access_init:
                     raise AccessNotInitializedError()
                 flow = InstalledAppFlow.from_client_secrets_file(
@@ -167,12 +168,12 @@ class GapiServiceProvider(ServiceProviderInterface):
                 GapiServiceProvider.object_id_token, "json"
             )
             token_link_new.set_properties({"email": email_md5})
-            logging.debug(f"Put token to storage ({token_link_new})")
+            logging.debug(f"{email} Put token to storage ({token_link_new})")
             result = self.storage.put(token_link_new, credentials.to_json())
             if not result:
                 raise Exception(f"{email} Failed to store token ({token_link_new})")
             else:
-                logging.info("token stored successfully")
+                logging.info(f"{email} token stored successfully")
                 token_link_old = self.credentials_token_links.get(email_md5)
                 self.credentials_token_links[email_md5] = token_link_new
                 if token_link_old:
