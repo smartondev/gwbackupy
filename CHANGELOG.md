@@ -2,6 +2,10 @@
 
 ## DEV
 
+
+
+## 0.10.
+
 - Enh: OAuth parameters added (`--oauth-port`, `--oauth-bind-address`, `--oauth-redirect-host`)
 - Enh #66: OAuth check authenticated email matches
 - Enh: OAuth wait is limited to 300s
