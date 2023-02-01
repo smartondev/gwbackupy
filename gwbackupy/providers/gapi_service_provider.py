@@ -151,7 +151,7 @@ class GapiServiceProvider(ServiceProviderInterface):
                     logging.exception(f"{email} Failed to refresh token: {e}")
                     credentials = None
             if not credentials:
-                logging.debug("{email} Credentials not found")
+                logging.debug(f"{email} Credentials not found")
                 if not access_init:
                     raise AccessNotInitializedError()
                 requests_scope = self.scopes.copy()
@@ -173,8 +173,8 @@ class GapiServiceProvider(ServiceProviderInterface):
                     timeout_seconds=300,
                     success_message=f"The authentication flow has completed with {email} account. "
                     "You may close this window.",
-                    authorization_prompt_message=f"Please visit this URL with {email} to authorize this application: "
-                    "{url}",
+                    authorization_prompt_message=f"Please visit this URL with {email} (CHECK THE USED PROFILE!) to "
+                    "authorize this application: {url}",
                 )
                 if self.verify_email:
                     auth_email = self.__oauth_get_email(credentials)
