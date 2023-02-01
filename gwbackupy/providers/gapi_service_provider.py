@@ -171,6 +171,10 @@ class GapiServiceProvider(ServiceProviderInterface):
                     port=self.oauth_port,
                     host=self.oauth_redirect_host,
                     timeout_seconds=300,
+                    success_message=f"The authentication flow has completed with {email} account. "
+                    "You may close this window.",
+                    authorization_prompt_message=f"Please visit this URL with {email} to authorize this application: "
+                    "{url}",
                 )
                 if self.verify_email:
                     auth_email = self.__oauth_get_email(credentials)
