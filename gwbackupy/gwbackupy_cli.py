@@ -188,6 +188,7 @@ def parse_arguments() -> argparse.Namespace:
         format=Log_Format,
         level=log_levels[args.log_level],
     )
+    logging.debug(f"CLI parameters: {sys.argv}")
     if (
         args.credentials_filepath is None and args.service_account_key_filepath is None
     ) or (
