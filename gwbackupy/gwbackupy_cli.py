@@ -10,6 +10,9 @@ import gwbackupy.global_properties as global_properties
 from gwbackupy.filters.gmail_filter import GmailFilter
 from gwbackupy.gmail import Gmail
 from gwbackupy.helpers import parse_date
+from gwbackupy.people import People
+from gwbackupy.providers.people_service_provider import PeopleServiceProvider
+from gwbackupy.providers.gapi_people_service_wrapper import GapiPeopleServiceWrapper
 from gwbackupy.providers.gapi_gmail_service_wrapper import GapiGmailServiceWrapper
 from gwbackupy.providers.gapi_service_provider import AccessNotInitializedError
 from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
@@ -204,6 +207,35 @@ def parse_arguments() -> argparse.Namespace:
 def cli_startup():
     try:
         args = parse_arguments()
+
+        storage = FileStorage(args.workdir + "/" + args.email + "/peoples")
+        storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")
+        service_provider = PeopleServiceProvider(
+            credentials_file_path=args.credentials_filepath,
+            service_account_email=args.service_account_email,
+            service_account_file_path=args.service_account_key_filepath,
+            storage=storage_oauth_tokens,
+            oauth_bind_addr=args.oauth_bind_address,
+            oauth_port=args.oauth_port,
+            oauth_redirect_host=args.oauth_redirect_host,
+        )
+        service_wrapper = GapiPeopleServiceWrapper(
+            service_provider=service_provider,
+            dry_mode=args.dry,
+        )
+
+        service = People(
+            email=args.email,
+            service_wrapper=service_wrapper,
+            # batch_size=args.batch_size,
+            batch_size=1,
+            storage=storage,
+            dry_mode=args.dry,
+        )
+
+        service.backup()
+        exit(1)
+
         if args.service == "gmail":
             storage = FileStorage(args.workdir + "/" + args.email + "/gmail")
             storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")

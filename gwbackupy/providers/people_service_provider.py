@@ -4,10 +4,10 @@ from gwbackupy.providers.gapi_service_provider import GapiServiceProvider
 from gwbackupy.storage.storage_interface import StorageInterface
 
 
-class ContactsServiceProvider(GapiServiceProvider):
+class PeopleServiceProvider(GapiServiceProvider):
     """Contacts service provider from gmail/v1 API with full access scope"""
 
     def __init__(self, **kwargs):
-        super(ContactsServiceProvider, self).__init__(
+        super(PeopleServiceProvider, self).__init__(
             "people", "v1", ["https://www.googleapis.com/auth/contacts"], **kwargs
         )
