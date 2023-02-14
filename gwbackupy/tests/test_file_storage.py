@@ -38,7 +38,6 @@ def test_link_put_and_get_spec_characters():
         assert links[0] == link
 
 
-
 def test_link_put_not_supported_data():
     with tempfile.TemporaryDirectory(prefix="myapp-") as temproot:
         fs = FileStorage(root=temproot)
@@ -185,7 +184,7 @@ def test_find_with_spec_character():
         links = fs.find()
         assert len(links) == 1
         assert exists(tmp)
-        assert links[0].id() == '%2f/\\'
+        assert links[0].id() == "%2f/\\"
 
 
 def test_find_with_tempfile():
@@ -385,14 +384,14 @@ def test_generate_content_hash():
         fs = FileStorage(root=temproot)
         assert fs.content_hash_generate("a1234") == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         assert (
-                fs.content_hash_generate(bytes("a1234", "utf-8"))
-                == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+            fs.content_hash_generate(bytes("a1234", "utf-8"))
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )
         link = fs.new_link("test", "ext")
         fs.put(link, "a1234")
         assert (
-                fs.content_hash_generate(fs.get(link))
-                == "m828c88f34ecb4c1ca8d89e018c6fad1a"
+            fs.content_hash_generate(fs.get(link))
+            == "m828c88f34ecb4c1ca8d89e018c6fad1a"
         )
         try:
             fs.content_hash_generate({})
@@ -402,18 +401,18 @@ def test_generate_content_hash():
 
 
 def test_file_link_escape():
-    assert FileLink.escape('a1234') == 'a1234'
-    assert FileLink.escape('a/a') == 'a%2fa'
-    assert FileLink.escape('a%/a') == 'a%25%2fa'
-    assert FileLink.escape('a%2f/a') == 'a%252f%2fa'
-    assert FileLink.escape('a\\a') == 'a%5ca'
-    assert FileLink.escape('a%5c%2f\\a') == 'a%255c%252f%5ca'
+    assert FileLink.escape("a1234") == "a1234"
+    assert FileLink.escape("a/a") == "a%2fa"
+    assert FileLink.escape("a%/a") == "a%25%2fa"
+    assert FileLink.escape("a%2f/a") == "a%252f%2fa"
+    assert FileLink.escape("a\\a") == "a%5ca"
+    assert FileLink.escape("a%5c%2f\\a") == "a%255c%252f%5ca"
 
 
 def test_file_link_unescape():
-    assert FileLink.unescape('a1234') == 'a1234'
-    assert FileLink.unescape('a%2fa') == 'a/a'
-    assert FileLink.unescape('a%25%2fa') == 'a%/a'
-    assert FileLink.unescape('a%252f%2fa') == 'a%2f/a'
-    assert FileLink.unescape('a%5ca') == 'a\\a'
-    assert FileLink.unescape('a%255c%252f%5ca') == 'a%5c%2f\\a'
+    assert FileLink.unescape("a1234") == "a1234"
+    assert FileLink.unescape("a%2fa") == "a/a"
+    assert FileLink.unescape("a%25%2fa") == "a%/a"
+    assert FileLink.unescape("a%252f%2fa") == "a%2f/a"
+    assert FileLink.unescape("a%5ca") == "a\\a"
+    assert FileLink.unescape("a%255c%252f%5ca") == "a%5c%2f\\a"
