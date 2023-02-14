@@ -80,16 +80,24 @@ class FileLink(LinkInterface):
                     self.__properties[key] = value
         return self
 
+    @staticmethod
+    def escape(s: str) -> str:
+        return s.replace("%", "%25").replace("/", "%2f").replace("\\", "%5c")
+
+    @staticmethod
+    def unescape(s: str) -> str:
+        return s.replace("%2f", "/").replace("%5c", "\\").replace("%25", "%")
+
     def get_file_path(self) -> str:
-        path = os.path.join(self.__path, self.__id)
+        path = os.path.join(self.__path, FileLink.escape(self.__id))
         keys = list(self.__properties.keys())
         keys.sort()
         for k in keys:
             if self.__properties[k] is None:
                 continue
-            path += f".{k}="
+            path += f".{FileLink.escape(k)}="
             if self.__properties[k] is not True:
-                path += str(self.__properties[k])
+                path += FileLink.escape(str(self.__properties[k]))
         if self.__extension is not None:
             path += f".{self.__extension}"
 
@@ -101,7 +109,7 @@ class FileLink(LinkInterface):
         if m is None:
             return None
         result: dict[str, any] = {
-            "object_id": m.group("id"),
+            "object_id": FileLink.unescape(m.group("id")),
             "extension": m.group("extension"),
         }
         properties = m.group("properties")
@@ -111,7 +119,9 @@ class FileLink(LinkInterface):
             p, v = prop.split("=", 1)
             if v == "":
                 v = True
-            result[p] = v
+            else:
+                v = FileLink.unescape(v)
+            result[FileLink.unescape(p)] = v
         return result
 
     def mutation(self) -> str:
