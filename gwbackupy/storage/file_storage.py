@@ -82,11 +82,23 @@ class FileLink(LinkInterface):
 
     @staticmethod
     def escape(s: str) -> str:
-        return s.replace("%", "%25").replace("/", "%2f").replace("\\", "%5c")
+        s = s.replace("%", "%25")  # must be first
+        return (
+            s.replace("/", "%2f")
+            .replace("\\", "%5c")
+            .replace("=", "%3d")
+            .replace(".", "%2e")
+        )
 
     @staticmethod
     def unescape(s: str) -> str:
-        return s.replace("%2f", "/").replace("%5c", "\\").replace("%25", "%")
+        return (
+            s.replace("%2f", "/")
+            .replace("%5c", "\\")
+            .replace("%3d", "=")
+            .replace("%2e", ".")
+            .replace("%25", "%")
+        )  # must be last
 
     def get_file_path(self) -> str:
         path = os.path.join(self.__path, FileLink.escape(self.__id))
