@@ -2,9 +2,9 @@
 
 ## DEV
 
+- Enh: add more escape sequence to filename processing
 
-
-## 0.10.
+## 0.10.0
 
 - Enh: OAuth parameters added (`--oauth-port`, `--oauth-bind-address`, `--oauth-redirect-host`)
 - Enh #66: OAuth check authenticated email matches
