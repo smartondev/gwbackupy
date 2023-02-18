@@ -5,6 +5,8 @@ import json
 import logging
 import threading
 
+import requests
+
 from gwbackupy import global_properties
 from gwbackupy.process_helpers import await_all_futures
 from gwbackupy.providers.people_service_wrapper_interface import (
@@ -109,14 +111,40 @@ class People:
 
             # ...
             etag = people.get("etag", None)
-            print(etag)
+            if not is_new:
+                etag_currently = latest_meta_link.get_property(
+                    LinkInterface.property_etag
+                )
+                if etag_currently is not None and etag_currently == etag:
+                    write_meta = False
+                    logging.debug(f"{people_id} is not changed, skip put")
 
             if write_meta:
-                link = self.storage.new_link(
-                    object_id=people_id,
-                    extension="json",
-                    created_timestamp=0.0,
-                ).set_properties({LinkInterface.property_metadata: True})
+                photos = people.get("photos", [])
+                for photo in photos:
+                    photo_url = photo.get("url", None)
+                    if photo_url is None or photo.get("default", True) is True:
+                        # not found url or default photo
+                        continue
+                    logging.debug(f"{people_id} downloading photo: {photo_url}")
+                    r = requests.get(photo_url, stream=True)
+                    if r.status_code != 200:
+                        logging.error(
+                            f"{people_id} photo download failed ({photo_url})"
+                        )
+                        continue
+                    logging.debug(
+                        f"{people_id} photo download success ({len(r.raw)} bytes)"
+                    )
+                link = (
+                    self.storage.new_link(
+                        object_id=people_id,
+                        extension="json",
+                        created_timestamp=0.0,
+                    )
+                    .set_properties({LinkInterface.property_metadata: True})
+                    .set_properties({LinkInterface.property_etag: etag})
+                )
                 success = self.__storage_put(link, data=json.dumps(people))
                 if success:
                     logging.info(f"{people_id} meta data is saved")

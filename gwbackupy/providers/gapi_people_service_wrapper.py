@@ -61,6 +61,3 @@ class GapiPeopleServiceWrapper(PeopleServiceWrapperInterface):
 
     def get_people(self, email: str, contact_id: str) -> [dict[str, any]]:
         pass
-
-    def get_people_main_photo(self, email: str, contact_id: str) -> bytes:
-        pass

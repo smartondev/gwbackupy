@@ -17,6 +17,9 @@ class LinkInterface:
     property_object = "object"
     property_mutation = "mutation"
     property_content_hash = "ch"
+    """Content hash. Used to check if the content is changed. Calculated by content."""
+    property_etag = "etag"
+    """ETag. Used to check if the content is changed. Calculated by API."""
     id_special_prefix = "--gwbackupy-"
 
     def id(self) -> str:
