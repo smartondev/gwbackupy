@@ -17,6 +17,7 @@ setup(
         "gwbackupy.storage",
         "gwbackupy.filters",
         "gwbackupy.providers",
+        "gwbackupy.cli",
     ],
     url="https://github.com/smartondev/gwbackupy",
     license='BSD 3-Clause "New" or "Revised" License',
