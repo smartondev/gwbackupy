@@ -108,6 +108,8 @@ class People:
             write_meta = True  # if any failure then write it force
 
             # ...
+            etag = people.get("etag", None)
+            print(etag)
 
             if write_meta:
                 link = self.storage.new_link(
