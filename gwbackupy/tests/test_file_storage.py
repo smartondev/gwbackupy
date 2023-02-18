@@ -407,6 +407,8 @@ def test_file_link_escape():
     assert FileLink.escape("a%2f/a") == "a%252f%2fa"
     assert FileLink.escape("a\\a") == "a%5ca"
     assert FileLink.escape("a%5c%2f\\a") == "a%255c%252f%5ca"
+    assert FileLink.escape("a=a") == "a%3da"
+    assert FileLink.escape("a.a") == "a%2ea"
 
 
 def test_file_link_unescape():
@@ -416,3 +418,5 @@ def test_file_link_unescape():
     assert FileLink.unescape("a%252f%2fa") == "a%2f/a"
     assert FileLink.unescape("a%5ca") == "a\\a"
     assert FileLink.unescape("a%255c%252f%5ca") == "a%5c%2f\\a"
+    assert FileLink.unescape("a%3da") == "a=a"
+    assert FileLink.unescape("a%2ea") == "a.a"
