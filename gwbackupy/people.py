@@ -119,7 +119,8 @@ class People:
                     write_meta = False
                     logging.debug(f"{people_id} is not changed, skip put")
 
-            if write_meta:
+            logging.debug(f"{people_id} processing photos... {people}")
+            if write_meta or True:
                 photos = people.get("photos", [])
                 for photo in photos:
                     photo_url = photo.get("url", None)
