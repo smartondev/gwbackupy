@@ -6,8 +6,10 @@ import logging
 import threading
 
 import requests
+import re
 
 from gwbackupy import global_properties
+from gwbackupy.helpers import md5hex
 from gwbackupy.process_helpers import await_all_futures
 from gwbackupy.providers.people_service_wrapper_interface import (
     PeopleServiceWrapperInterface,
@@ -121,22 +123,7 @@ class People:
 
             logging.debug(f"{people_id} processing photos... {people}")
             if write_meta or True:
-                photos = people.get("photos", [])
-                for photo in photos:
-                    photo_url = photo.get("url", None)
-                    if photo_url is None or photo.get("default", True) is True:
-                        # not found url or default photo
-                        continue
-                    logging.debug(f"{people_id} downloading photo: {photo_url}")
-                    r = requests.get(photo_url, stream=True)
-                    if r.status_code != 200:
-                        logging.error(
-                            f"{people_id} photo download failed ({photo_url})"
-                        )
-                        continue
-                    logging.debug(
-                        f"{people_id} photo download success ({len(r.raw)} bytes)"
-                    )
+                self.__backup_photos(people, people_id)
                 link = (
                     self.storage.new_link(
                         object_id=people_id,
@@ -160,6 +147,42 @@ class People:
             if str(e) == "SKIP":
                 return
             logging.exception(f"{people_id} {e}")
+
+    def __backup_photos(self, people, people_id):
+        # TODO precheck download files, and download only if not exists
+        photos = people.get("photos", [])
+        for photo in photos:
+            photo_url = photo.get("url", None)
+            if photo_url is None:
+                # not found url or default photo
+                continue
+            photo_url = re.sub(r"=s100$", "", photo_url)
+            logging.debug(f"{people_id} downloading photo: {photo_url}")
+            r = requests.get(photo_url, stream=True)
+            if r.status_code != 200:
+                raise Exception(f"photo download failed ({photo_url}")
+            for header in r.headers:
+                logging.log(
+                    global_properties.log_finest, f"{header}: {r.headers[header]}"
+                )
+            extension = r.headers.get("content-type", "unknown").split("/")[-1]
+            photo_bytes = b""
+            for chunk in r.iter_content(chunk_size=1024):
+                photo_bytes += chunk
+            size = len(photo_bytes)
+            logging.debug(f"{people_id} photo download success ({size} bytes)")
+            link = (
+                self.storage.new_link(
+                    object_id=people_id,
+                    extension=extension,
+                    created_timestamp=0.0,
+                )
+                .set_properties({LinkInterface.property_object: True})
+                .set_properties({LinkInterface.property_etag: md5hex(photo_url)})
+            )
+            if self.__storage_put(link, data=photo_bytes):
+                logging.info(f"{people_id} photo is saved")
+            logging.debug(f"{people_id} saving photo: {link}")
 
     def __storage_put(self, link: LinkInterface, data: Data) -> bool:
         if self.dry_mode:

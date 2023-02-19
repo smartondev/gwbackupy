@@ -8,6 +8,7 @@ import json
 import logging
 from json import JSONDecodeError
 from typing import IO
+import hashlib
 
 import tzlocal
 from googleapiclient.errors import HttpError
@@ -82,3 +83,9 @@ def is_rate_limit_exceeded(e) -> bool:
 
 def random_string(length: int = 8) -> str:
     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
+
+
+def md5hex(data: bytes | str) -> str:
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    return hashlib.md5(data).hexdigest().lower()
