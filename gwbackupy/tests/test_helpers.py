@@ -13,6 +13,7 @@ from gwbackupy.helpers import (
     parse_date,
     is_rate_limit_exceeded,
     random_string,
+    md5hex,
 )
 
 
@@ -94,3 +95,12 @@ def test_is_rate_limit_exceeded():
 def test_random_string():
     for i in range(32):
         assert len(random_string(i)) == i
+
+
+def test_md5hex():
+    assert md5hex(b"") == "d41d8cd98f00b204e9800998ecf8427e"
+    assert md5hex(b"abc") == "900150983cd24fb0d6963f7d28e17f72"
+    assert md5hex(b"message digest") == "f96b697d7cb7938d525a2f31aaf161d0"
+    assert md5hex("") == "d41d8cd98f00b204e9800998ecf8427e"
+    assert md5hex("abc") == "900150983cd24fb0d6963f7d28e17f72"
+    assert md5hex("message digest") == "f96b697d7cb7938d525a2f31aaf161d0"

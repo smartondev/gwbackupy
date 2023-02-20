@@ -198,16 +198,20 @@ class FileStorage(StorageInterface):
         object_id: str,
         extension: str,
         created_timestamp: int | float | None = None,
+        folders: list[str] | None = None,
     ) -> FileLink:
         link = FileLink()
         path = self.root
-        if created_timestamp is not None:
-            sub_paths = (
+        if folders is not None:
+            folders.insert(0, path)
+            path = os.path.join(*folders)
+        elif created_timestamp is not None:
+            sub_paths: [str] = (
                 datetime.fromtimestamp(created_timestamp, tz=timezone.utc)
                 .strftime("%Y-%m-%d")
                 .split("-", 1)
             )
-            path += f"/{sub_paths[0]}/{sub_paths[1]}"
+            path = os.path.join(path, sub_paths[0], sub_paths[1])
         link.fill(
             {
                 "path": path,
