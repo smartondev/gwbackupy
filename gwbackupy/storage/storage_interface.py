@@ -143,6 +143,7 @@ class StorageInterface:
         object_id: str,
         extension: str,
         created_timestamp: int | float | None = None,
+        folders: list[str] | None = None,
     ) -> LinkInterface:
         raise NotImplementedError("StorageInterface#new_link")
 

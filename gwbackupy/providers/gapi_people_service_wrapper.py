@@ -49,7 +49,6 @@ class GapiPeopleServiceWrapper(PeopleServiceWrapperInterface):
                     )
                     .execute()
                 )
-                print(data)
                 next_page_token = data.get("nextPageToken", None)
                 page_message_count = len(data.get("connections", []))
                 logging.debug(

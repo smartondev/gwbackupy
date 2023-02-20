@@ -126,14 +126,15 @@ class People:
                     write_meta = False
                     logging.debug(f"{people_id} is not changed, skip put")
 
-            logging.debug(f"{people_id} processing photos... {people}")
             if write_meta:
-                self.__backup_photos(people, people_id, links)
+                logging.info(f"{people_id} is changed")
+                folders = ["people", people_id.split("/")[1][0:3]]
+                self.__backup_photos(people, people_id, links, folders)
                 link = (
                     self.storage.new_link(
                         object_id=people_id,
                         extension="json",
-                        created_timestamp=0.0,
+                        folders=folders,
                     )
                     .set_properties({LinkInterface.property_metadata: True})
                     .set_properties({LinkInterface.property_etag: etag})
@@ -142,8 +143,6 @@ class People:
                     logging.info(f"{people_id} meta data is saved")
                 else:
                     raise Exception("Meta data put failed")
-            else:
-                logging.debug(f"{people_id} meta data is not changed, skip put")
 
         except Exception as e:
             with self.__lock:
@@ -153,8 +152,13 @@ class People:
             logging.exception(f"{people_id} {e}")
 
     def __backup_photos(
-        self, people: dict[str, any], people_id: str, links: dict[str, LinkInterface]
+        self,
+        people: dict[str, any],
+        people_id: str,
+        links: dict[str, LinkInterface],
+        folders: [str],
     ):
+        logging.debug(f"{people_id} processing photos...")
         for photo in people.get("photos", []):
             photo_url = photo.get("url", None)
             if photo_url is None:
@@ -177,7 +181,7 @@ class People:
                 self.storage.new_link(
                     object_id=people_id,
                     extension=extension,
-                    created_timestamp=0.0,
+                    folders=folders,
                 )
                 .set_properties({LinkInterface.property_object: True})
                 .set_properties({LinkInterface.property_etag: md5hex(photo_url)})
