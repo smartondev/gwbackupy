@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import logging
 
+import requests
+
 from gwbackupy import global_properties
 from gwbackupy.providers.people_service_provider import PeopleServiceProvider
 from gwbackupy.providers.people_service_wrapper_interface import (
     PeopleServiceWrapperInterface,
+    PhotoDescriptor,
 )
 
 
@@ -60,5 +63,20 @@ class GapiPeopleServiceWrapper(PeopleServiceWrapperInterface):
             logging.log(global_properties.log_finest, f"Items: {items}")
             return items
 
-    def get_people(self, email: str, contact_id: str) -> [dict[str, any]]:
-        pass
+    def get_photo(self, email: str, people_id: str, uri: str) -> PhotoDescriptor:
+        logging.debug(f"{people_id} downloading photo: {uri}")
+        r = requests.get(uri, stream=True)
+        if r.status_code != 200:
+            raise Exception(
+                f"photo download failed, status code: {r.status_code} ({uri})"
+            )
+        for header in r.headers:
+            logging.log(global_properties.log_finest, f"{header}: {r.headers[header]}")
+        photo_bytes = b""
+        for chunk in r.iter_content(chunk_size=1024):
+            photo_bytes += chunk
+        return PhotoDescriptor(
+            uri=uri,
+            data=photo_bytes,
+            mime_type=r.headers.get("content-type", "image/unknown"),
+        )

@@ -166,20 +166,13 @@ class People:
                 # already exists
                 links.pop(photo_url_md5)
                 continue
-            logging.debug(f"{people_id} downloading photo: {photo_url}")
-            r = requests.get(photo_url, stream=True)
-            if r.status_code != 200:
-                raise Exception(f"photo download failed ({photo_url}")
-            for header in r.headers:
-                logging.log(
-                    global_properties.log_finest, f"{header}: {r.headers[header]}"
-                )
-            extension = r.headers.get("content-type", "unknown").split("/")[-1]
-            photo_bytes = b""
-            for chunk in r.iter_content(chunk_size=1024):
-                photo_bytes += chunk
-            size = len(photo_bytes)
-            logging.debug(f"{people_id} photo download success ({size} bytes)")
+            descriptor = self.__service_wrapper.get_photo(
+                email=self.email, uri=photo_url, people_id=people_id
+            )
+            extension = descriptor.mime_type.split("/")[-1]
+            logging.debug(
+                f"{people_id} photo download success ({len(descriptor.data)} bytes / {descriptor.mime_type})"
+            )
             link = (
                 self.storage.new_link(
                     object_id=people_id,
@@ -189,7 +182,7 @@ class People:
                 .set_properties({LinkInterface.property_object: True})
                 .set_properties({LinkInterface.property_etag: md5hex(photo_url)})
             )
-            if self.__storage_put(link, data=photo_bytes):
+            if self.__storage_put(link, data=descriptor.data):
                 logging.info(f"{people_id} photo is saved ({photo_url})")
             else:
                 raise Exception(f"Photo put failed ({link})")
