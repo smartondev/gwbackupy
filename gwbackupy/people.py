@@ -5,7 +5,6 @@ import json
 import logging
 import threading
 
-import requests
 import re
 
 from gwbackupy import global_properties
@@ -194,10 +193,9 @@ class People:
         for photo_url_md5 in links:
             if photo_url_md5 == "":
                 continue
-            logging.info(f"{people_id} deleting photo link: {links[photo_url_md5]}")
             if self.storage.remove(links[photo_url_md5]):
-                logging.debug(
-                    f"{people_id} photo link is deleted ({links[photo_url_md5]})"
+                logging.info(
+                    f"{people_id} old photo is deleted ({links[photo_url_md5]})"
                 )
             else:
                 raise Exception(f"Photo link delete failed ({links[photo_url_md5]})")
