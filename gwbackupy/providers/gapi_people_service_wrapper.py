@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from gwbackupy import global_properties
 from gwbackupy.providers.people_service_provider import PeopleServiceProvider
 from gwbackupy.providers.people_service_wrapper_interface import (
     PeopleServiceWrapperInterface,
@@ -36,7 +37,7 @@ class GapiPeopleServiceWrapper(PeopleServiceWrapperInterface):
                     .connections()
                     .list(
                         resourceName="people/me",
-                        pageSize=50,
+                        pageSize=2000,
                         pageToken=next_page_token,
                         personFields="addresses,ageRange,biographies,birthdays,braggingRights,coverPhotos,"
                         "events,genders,imClients,interests,locales,memberships,metadata,names,nicknames,"
@@ -53,10 +54,10 @@ class GapiPeopleServiceWrapper(PeopleServiceWrapperInterface):
                 )
                 for item in data.get("connections", []):
                     items[item.get("resourceName")] = item
-                page += 1
                 if next_page_token is None:
                     break
-            print(items)
+                page += 1
+            logging.log(global_properties.log_finest, f"Items: {items}")
             return items
 
     def get_people(self, email: str, contact_id: str) -> [dict[str, any]]:

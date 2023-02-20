@@ -46,14 +46,17 @@ class People:
         stored_data_all = self.storage.find()
         logging.info(f"Stored items: {len(stored_data_all)}")
 
-        stored_items: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
+        stored_items: dict[str, dict[str, LinkInterface]] = stored_data_all.find(
             f=lambda l: not l.is_special_id() and (l.is_metadata() or l.is_object()),
-            g=lambda l: [l.id(), 0 if l.is_metadata() else 1],
+            g=lambda l: [
+                l.id(),
+                "" if l.is_metadata() else l.get_property(LinkInterface.property_etag),
+            ],
         )
 
         del stored_data_all
         for item_id in list(stored_items.keys()):
-            link_metadata = stored_items[item_id].get(0)
+            link_metadata = stored_items[item_id].get("")
             if link_metadata is None:
                 logging.error(f"{item_id} metadata is not found in locally")
                 del stored_items[item_id]
@@ -97,14 +100,16 @@ class People:
         return False
 
     def __backup_item(
-        self, people: dict[str, any], stored_items: dict[str, dict[int, LinkInterface]]
+        self, people: dict[str, any], stored_items: dict[str, dict[str, LinkInterface]]
     ):
         people_id = people.get("resourceName", "UNKNOWN")  # for logging
         try:
             people_id = people["resourceName"]
+            links: dict[str, LinkInterface] = dict()
             latest_meta_link = None
             if people_id in stored_items:
-                latest_meta_link = stored_items[people_id][0]
+                latest_meta_link = stored_items[people_id][""]
+                links = stored_items[people_id]
             is_new = latest_meta_link is None
             if is_new:
                 logging.debug(f"{people_id} is new")
@@ -122,8 +127,8 @@ class People:
                     logging.debug(f"{people_id} is not changed, skip put")
 
             logging.debug(f"{people_id} processing photos... {people}")
-            if write_meta or True:
-                self.__backup_photos(people, people_id)
+            if write_meta:
+                self.__backup_photos(people, people_id, links)
                 link = (
                     self.storage.new_link(
                         object_id=people_id,
@@ -133,8 +138,7 @@ class People:
                     .set_properties({LinkInterface.property_metadata: True})
                     .set_properties({LinkInterface.property_etag: etag})
                 )
-                success = self.__storage_put(link, data=json.dumps(people))
-                if success:
+                if self.__storage_put(link, data=json.dumps(people)):
                     logging.info(f"{people_id} meta data is saved")
                 else:
                     raise Exception("Meta data put failed")
@@ -148,15 +152,20 @@ class People:
                 return
             logging.exception(f"{people_id} {e}")
 
-    def __backup_photos(self, people, people_id):
-        # TODO precheck download files, and download only if not exists
-        photos = people.get("photos", [])
-        for photo in photos:
+    def __backup_photos(
+        self, people: dict[str, any], people_id: str, links: dict[str, LinkInterface]
+    ):
+        for photo in people.get("photos", []):
             photo_url = photo.get("url", None)
             if photo_url is None:
                 # not found url or default photo
                 continue
             photo_url = re.sub(r"=s100$", "", photo_url)
+            photo_url_md5 = md5hex(photo_url)
+            if photo_url_md5 in links:
+                # already exists
+                links.pop(photo_url_md5)
+                continue
             logging.debug(f"{people_id} downloading photo: {photo_url}")
             r = requests.get(photo_url, stream=True)
             if r.status_code != 200:
@@ -181,8 +190,20 @@ class People:
                 .set_properties({LinkInterface.property_etag: md5hex(photo_url)})
             )
             if self.__storage_put(link, data=photo_bytes):
-                logging.info(f"{people_id} photo is saved")
-            logging.debug(f"{people_id} saving photo: {link}")
+                logging.info(f"{people_id} photo is saved ({photo_url})")
+            else:
+                raise Exception(f"Photo put failed ({link})")
+        # delete old photos
+        for photo_url_md5 in links:
+            if photo_url_md5 == "":
+                continue
+            logging.info(f"{people_id} deleting photo link: {links[photo_url_md5]}")
+            if self.storage.remove(links[photo_url_md5]):
+                logging.debug(
+                    f"{people_id} photo link is deleted ({links[photo_url_md5]})"
+                )
+            else:
+                raise Exception(f"Photo link delete failed ({links[photo_url_md5]})")
 
     def __storage_put(self, link: LinkInterface, data: Data) -> bool:
         if self.dry_mode:
