@@ -3,6 +3,7 @@
 ## DEV
 
 - Enh: add more escape sequence to filename processing
+- Bug: fix get labels from server if restore to another account
 
 ## 0.10.0
 

@@ -532,7 +532,7 @@ class Gmail:
         if latest_labels_from_storage is None:
             logging.error("Stored labels loading failed")
             return False
-        _labels_from_server = self.__get_labels_from_server()
+        _labels_from_server = self.__get_labels_from_server(email=to_email)
         if _labels_from_server is None:
             logging.error("Loading labels from server failed")
             return False
