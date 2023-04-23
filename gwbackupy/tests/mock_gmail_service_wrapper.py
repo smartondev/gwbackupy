@@ -15,6 +15,7 @@ class MockGmailServiceWrapper(GmailServiceWrapperInterface):
         self.__service_provider = MockServiceProvider()
         self.__messages: dict[str, dict[str, dict[str, any]]] = {}
         self.__labels: dict[str, list[dict[str, any]]] = {}
+        self.throw_if_label_already_created = True
 
     def get_service_provider(self) -> MockServiceProvider:
         return self.__service_provider
@@ -47,6 +48,8 @@ class MockGmailServiceWrapper(GmailServiceWrapperInterface):
 
         for label in labels:
             if label.get("name") == name:
+                if self.throw_if_label_already_created:
+                    raise Exception(f"Label {name} already created")
                 return label
 
         label = {

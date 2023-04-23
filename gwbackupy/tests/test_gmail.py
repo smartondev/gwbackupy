@@ -3,6 +3,7 @@ import gzip
 import logging
 import sys
 from datetime import datetime
+import parametrize_from_file
 
 from typing import List, Dict
 
@@ -116,7 +117,8 @@ def test_server_continuous_backup():
             assert ms.content_hash_check(link) is True
 
 
-def test_restore_with_labels():
+@parametrize_from_file
+def test_restore_with_label_recreate(to_email: str, clear_labels: bool):
     ms = MockStorage()
     sw = MockGmailServiceWrapper()
     message_id = random_string()
@@ -140,16 +142,17 @@ def test_restore_with_labels():
         service_wrapper=sw,
     )
     assert gmail.backup()
-    sw.inject_labels_clear()
+    if clear_labels:
+        sw.inject_labels_clear()
     sw.inject_messages_clear()
     filtr = GmailFilter()
     filtr.is_missing()
-    assert gmail.restore(filtr, restore_missing=True, add_labels=[])
-    messages = sw.get_messages(email, q="all")
+    assert gmail.restore(filtr, restore_missing=True, add_labels=[], to_email=to_email)
+    messages = sw.get_messages(to_email, q="all")
     assert len(messages) == 1
     restored_message = list(messages.values())[0]
     restored_label_ids = restored_message["labelIds"]
-    reloaded_labels = sw.get_labels(email)
+    reloaded_labels = sw.get_labels(to_email)
     assert len(restored_label_ids) >= 2
     assert __find_label_by_label_name(reloaded_labels, label1["name"])
     assert __find_label_by_label_name(reloaded_labels, label2["name"])
@@ -174,4 +177,4 @@ if __name__ == "__main__":
         format=Log_Format,
         level=logging.DEBUG,
     )
-    test_restore_with_labels()
+    test_restore_with_label_recreate("example2@example.com", True)
