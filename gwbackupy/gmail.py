@@ -29,6 +29,12 @@ from gwbackupy.storage.storage_interface import (
 )
 
 
+def __is_system_label_by_label_data(label_data: dict) -> bool:
+    if label_data is None:
+        raise ValueError("label_data is None")
+    return label_data.get("type") == "system"
+
+
 class Gmail:
     """Gmail service"""
 
@@ -349,18 +355,29 @@ class Gmail:
         logging.info(f"Backup finished for {self.email}")
         return True
 
-    def __create_label_server(self, label_name, email) -> dict:
-        if email is None:
-            email = self.email
-        logging.info(f"Restoring label if not exists: {label_name}")
-        if self.dry_mode:
-            logging.info("DRY MODE: create label if not exists")
-            return {
-                "id": f"Label_DRY{datetime.utcnow().timestamp():1.3f}",
-                "type": "user",
-                "name": label_name,
-            }
-        return self.__service_wrapper.create_label(email=email, name=label_name)
+    @staticmethod
+    def __is_user_label_by_label_id(label_id: str) -> bool:
+        if label_id is None:
+            raise ValueError("label_id is None")
+        return label_id.startswith("Label_")
+
+    def __find_or_create_label_by_name(
+        self, name: str, email: str, labels_form_server: dict[str, dict[str, any]]
+    ) -> dict[str, any]:
+        for data in labels_form_server.values():
+            if data.get("name") == name:
+                label_id = data.get("id")
+                logging.debug(
+                    f"Label is found on server: {name} (id={label_id}, email={email})"
+                )
+                return data
+        data = self.__service_wrapper.create_label(
+            email=email, name=name, get_if_already_exists=True
+        )
+        logging.debug(
+            f"Label is created on server: {name} (id={data.get('id')}, email={email})"
+        )
+        return data
 
     def __get_restore_label_ids(
         self,
@@ -370,55 +387,66 @@ class Gmail:
         add_labels: [str],
         label_ids_from_message: [str],
     ) -> [str]:
-        if self.email != to_email:
-            raise NotImplementedError("Not implemented for different emails")
         with self.__lock:
             result = []
             for message_label_id in label_ids_from_message:
                 if message_label_id == "CHAT":
-                    # CHAT tag cannot be restoring
+                    # CHAT label cannot be restoring
                     continue
-                if message_label_id in labels_form_server:
-                    server_data = labels_form_server[message_label_id]
-                    if server_data["type"] == "system" or server_data["type"] == "user":
-                        # user and system tag allow directly if exists on server
-                        result.append(server_data["id"])
-                        continue
-                    raise NotImplementedError(
-                        f'Not implemented tag type: {server_data["type"]}'
-                    )
-                # not exists on server
-                if message_label_id not in labels_from_storage:
+                # get label data from storage
+                label_data_from_storage = labels_from_storage.get(message_label_id)
+                if label_data_from_storage is None:
                     logging.warning(
                         f"Label with {message_label_id} ID is cannot be restored because no data can be found."
                     )
                     continue
-                label_data = labels_from_storage[message_label_id]
-                created_label_data = self.__create_label_server(
-                    label_data["name"], to_email
+                is_user_label = label_data_from_storage.get("type") == "user"
+                is_system_label = label_data_from_storage.get("type") == "system"
+                if not is_user_label and not is_system_label:
+                    raise ValueError(
+                        f"Label with {message_label_id} ID is not user or system label."
+                    )
+                if is_system_label:
+                    if labels_form_server.get(message_label_id) is None:
+                        # system label not exists on server
+                        raise ValueError(
+                            f"System label {message_label_id} is not exists on server."
+                        )
+                    # system tag allow directly
+                    result.append(message_label_id)
+                    continue
+                if self.email != to_email:
+                    # different destination email AND user created label
+                    # find label by name not by ID
+                    label_data = self.__find_or_create_label_by_name(
+                        label_data_from_storage.get("name"),
+                        to_email,
+                        labels_form_server,
+                    )
+                    # label data stored on original label ID!
+                    labels_form_server[message_label_id] = label_data
+                    result.append(label_data.get("id"))
+                    continue
+                label_data = labels_form_server.get(message_label_id)
+                if label_data is not None:
+                    # label exists on server
+                    result.append(message_label_id)
+                    continue
+                # not exists on server, create it
+                created_label_data = self.__service_wrapper.create_label(
+                    email=to_email,
+                    name=label_data_from_storage.get("name"),
+                    get_if_already_exists=True,
                 )
-                if created_label_data is None:
-                    raise Exception(f"Label is created already? A ({label_data})")
                 # label data stored on original label ID!
                 labels_form_server[message_label_id] = created_label_data
-                result.append(created_label_data["id"])
+                result.append(created_label_data.get("id"))
             for add_label in add_labels:
-                found = False
-                for key in labels_form_server:
-                    server_data = labels_form_server[key]
-                    if server_data["name"] == add_label:
-                        result.append(server_data["id"])
-                        found = True
-                        break
-                if found:
-                    continue
-                # create label...
-                created_label_data = self.__create_label_server(add_label, to_email)
-                if created_label_data is None:
-                    raise Exception(f"Label is created already? B ({label_data})")
-                # label data stored on original label ID!
-                labels_form_server[created_label_data["id"]] = created_label_data
-                result.append(created_label_data["id"])
+                label_data = self.__find_or_create_label_by_name(
+                    add_label, to_email, labels_form_server
+                )
+                labels_form_server[label_data.get("id")] = label_data
+                result.append(label_data.get("id"))
 
             return result
 
