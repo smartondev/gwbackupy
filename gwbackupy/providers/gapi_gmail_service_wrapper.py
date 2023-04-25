@@ -102,7 +102,7 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
         if self.dry_mode:
             return {
                 "name": name,
-                "id": f"DRYMODE{random_string()}",
+                "id": f"Label_DRYMODE{random_string()}",
                 "type": "user",
             }
         for i in range(self.try_count):

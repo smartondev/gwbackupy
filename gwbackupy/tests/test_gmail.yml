@@ -1,0 +1,9 @@
+test_restore_with_label_recreate:
+  - to_email: example@example.com
+    clear_labels: False
+  - to_email: example2@example.com
+    clear_labels: False
+  - to_email: example@example.com
+    clear_labels: True
+  - to_email: example2@example.com
+    clear_labels: True
