@@ -57,7 +57,6 @@ class Gmail:
             batch_size = 5
         self.batch_size = batch_size
         self.__lock = threading.RLock()
-        self.__services = {}
         self.__error_count = 0
         self.__service_wrapper = service_wrapper
         if labels is None:
