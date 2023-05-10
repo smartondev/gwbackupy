@@ -27,8 +27,10 @@ class GmailFilter(FilterInterface):
     def is_missing(self):
         self.__is_missing = True
 
-    def match(self, d: any) -> bool:
-        d: dict[str, any]
+    def match(self, d: dict[str, any]) -> bool:
+        """
+        :param d: data dict with keys: "link", "server-data", "message-id"
+        """
         link: LinkInterface = d["link"]
         if link.is_object():
             return True
@@ -43,15 +45,9 @@ class GmailFilter(FilterInterface):
             ts2 = int(link.mutation()) / 1000.0
             if ts2 < ts1:
                 return False
-        if not self.__is_deleted and not self.__is_missing:
-            # no missing or deleted filter
+        if link.is_deleted():
+            return self.__is_deleted
+        if not self.__is_missing:
             return True
-        if self.__is_deleted and link.is_deleted():
-            # deleted
-            return True
-        if self.__is_missing:
-            ids_from_server: dict[str, any] = d["server-data"]
-            if link.id() not in ids_from_server:
-                # missing
-                return True
-        return False
+        ids_from_server: dict[str, any] = d["server-data"]
+        return self.__is_missing and link.id() not in ids_from_server
