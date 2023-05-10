@@ -8,16 +8,20 @@ def test_match_object():
     ms = MockStorage()
     link = ms.new_link("abc", "json")
     link.set_properties({LinkInterface.property_object: True})
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {},
-    })
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {"abc": dict()},
-    })
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {"abc": dict()},
+        }
+    )
 
 
 def test_match_metadata():
@@ -25,54 +29,70 @@ def test_match_metadata():
     ms = MockStorage()
     link = ms.new_link("abc", "json")
     link.set_properties({LinkInterface.property_metadata: True})
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {},
-    })
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {"abc": dict()},
-    })
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {"abc": dict()},
+        }
+    )
 
 
 def test_match_metadata_deleted():
     f = GmailFilter()
     ms = MockStorage()
     link = ms.new_link("abc", "json")
-    link.set_properties({
-        LinkInterface.property_metadata: True,
-        LinkInterface.property_deleted: True,
-    })
-    assert not f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {},
-    })
+    link.set_properties(
+        {
+            LinkInterface.property_metadata: True,
+            LinkInterface.property_deleted: True,
+        }
+    )
+    assert not f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
     f.is_deleted()
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {},
-    })
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
 
 
 def test_match_metadata_missing():
     f = GmailFilter()
     ms = MockStorage()
     link = ms.new_link("abc", "json")
-    link.set_properties({
-        LinkInterface.property_metadata: True,
-    })
+    link.set_properties(
+        {
+            LinkInterface.property_metadata: True,
+        }
+    )
     f.is_missing()
-    assert f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {},
-    })
-    assert not f.match({
-        "message-id": "abc",
-        "link": link,
-        "server-data": {"abc": dict()},
-    })
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    assert not f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {"abc": dict()},
+        }
+    )
