@@ -89,6 +89,9 @@ def test_is_rate_limit_exceeded():
     data2[0]["error"]["details"].append(dict())
     e = HttpError(Resp(403, "Forbidden"), json.dumps(data2).encode("utf8"))
     assert not is_rate_limit_exceeded(e)
+    data2[0]["error"]["details"] = "not a list"
+    e = HttpError(Resp(403, "Forbidden"), json.dumps(data2).encode("utf8"))
+    assert not is_rate_limit_exceeded(e)
 
 
 def test_random_string():
