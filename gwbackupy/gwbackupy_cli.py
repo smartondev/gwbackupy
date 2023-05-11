@@ -252,11 +252,11 @@ def cli_startup():
                     logging.info("Filter options: missing")
                 if args.filter_date_from is not None:
                     dt = parse_date(args.filter_date_from, args.timezone)
-                    item_filter.date_from(dt)
+                    item_filter.with_date_from(dt)
                     logging.info(f"Filter options: date from {dt}")
                 if args.filter_date_to is not None:
                     dt = parse_date(args.filter_date_to, args.timezone)
-                    item_filter.date_to(dt)
+                    item_filter.with_date_to(dt)
                     logging.info(f"Filter options: date to {dt}")
                 if gmail.restore(
                     to_email=args.to_email,

@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Union
-
-import tzlocal
 
 from gwbackupy.filters.filter_interface import FilterInterface
 from gwbackupy.storage.storage_interface import LinkInterface
@@ -15,10 +15,16 @@ class GmailFilter(FilterInterface):
         self.__is_deleted: bool = False
         self.__is_missing: bool = False
 
-    def date_to(self, dt: datetime):
+    def with_date_to(self, dt: datetime | None):
+        if dt is None:
+            self.__date_to = None
+            return
         self.__date_to = dt.astimezone(timezone.utc)
 
-    def date_from(self, dt: datetime):
+    def with_date_from(self, dt: datetime | None):
+        if dt is None:
+            self.__date_to = None
+            return
         self.__date_from = dt.astimezone(timezone.utc)
 
     def with_match_deleted(self):

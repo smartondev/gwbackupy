@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from builtins import bool
 
@@ -8,10 +10,10 @@ class FilterInterface:
     def __init__(self):
         pass
 
-    def date_from(self, dt: datetime):
+    def with_date_from(self, dt: datetime | None):
         pass
 
-    def date_to(self, dt: datetime):
+    def with_date_to(self, dt: datetime | None):
         pass
 
     def with_match_deleted(self):
