@@ -96,3 +96,17 @@ def test_match_metadata_missing():
             "server-data": {"abc": dict()},
         }
     )
+
+
+def test_with_methods():
+    f = GmailFilter()
+    assert not f.is_match_deleted()
+    f.with_match_deleted()
+    assert f.is_match_deleted()
+    f.with_match_deleted(False)
+    assert not f.is_match_deleted()
+    assert not f.is_match_missing()
+    f.with_match_missing()
+    assert f.is_match_missing()
+    f.with_match_missing(False)
+    assert not f.is_match_missing()
