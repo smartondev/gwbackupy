@@ -27,7 +27,8 @@ class GmailFilter(FilterInterface):
     def is_missing(self):
         self.__is_missing = True
 
-    def match(self, d: dict[str, any]) -> bool:
+    def match(self, d: any) -> bool:
+        d: dict[str, any]
         """
         :param d: data dict with keys: "link", "server-data", "message-id"
         """
