@@ -13,7 +13,6 @@ from typing import IO
 
 from gwbackupy.storage.storage_interface import (
     StorageInterface,
-    Path,
     Data,
     LinkFilter,
     LinkInterface,
