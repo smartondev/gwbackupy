@@ -27,14 +27,14 @@ class GmailFilter(FilterInterface):
             return
         self.__date_from = dt.astimezone(timezone.utc)
 
-    def with_match_deleted(self):
-        self.__is_deleted = True
+    def with_match_deleted(self, match_deleted: bool = True):
+        self.__is_deleted = match_deleted
 
     def is_match_deleted(self) -> bool:
         return self.__is_deleted
 
-    def with_match_missing(self):
-        self.__is_missing = True
+    def with_match_missing(self, match_missing: bool = True):
+        self.__is_missing = match_missing
 
     def is_match_missing(self) -> bool:
         return self.__is_missing
