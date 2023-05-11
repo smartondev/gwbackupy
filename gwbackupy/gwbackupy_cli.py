@@ -245,10 +245,10 @@ def cli_startup():
                     args.add_labels = ["gwbackupy"]
                 item_filter = GmailFilter()
                 if args.restore_deleted:
-                    item_filter.is_deleted()
+                    item_filter.with_match_deleted()
                     logging.info("Filter options: deleted")
                 if args.restore_missing:
-                    item_filter.is_missing()
+                    item_filter.with_match_missing()
                     logging.info("Filter options: missing")
                 if args.filter_date_from is not None:
                     dt = parse_date(args.filter_date_from, args.timezone)

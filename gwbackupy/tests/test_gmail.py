@@ -146,7 +146,7 @@ def test_restore_with_label_recreate(to_email: str, clear_labels: bool):
         sw.inject_labels_clear()
     sw.inject_messages_clear()
     filtr = GmailFilter()
-    filtr.is_missing()
+    filtr.with_match_missing()
     assert gmail.restore(filtr, restore_missing=True, add_labels=[], to_email=to_email)
     messages = sw.get_messages(to_email, q="all")
     assert len(messages) == 1

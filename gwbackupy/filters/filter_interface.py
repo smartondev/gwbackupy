@@ -14,7 +14,10 @@ class FilterInterface:
     def date_to(self, dt: datetime):
         pass
 
-    def is_deleted(self):
+    def with_match_deleted(self):
+        pass
+
+    def is_match_deleted(self) -> bool:
         pass
 
     def match(self, d: any) -> bool:

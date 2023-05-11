@@ -21,11 +21,17 @@ class GmailFilter(FilterInterface):
     def date_from(self, dt: datetime):
         self.__date_from = dt.astimezone(timezone.utc)
 
-    def is_deleted(self):
+    def with_match_deleted(self):
         self.__is_deleted = True
 
-    def is_missing(self):
+    def is_match_deleted(self) -> bool:
+        return self.__is_deleted
+
+    def with_match_missing(self):
         self.__is_missing = True
+
+    def is_match_missing(self) -> bool:
+        return self.__is_missing
 
     def match(self, d: any) -> bool:
         d: dict[str, any]
@@ -47,8 +53,8 @@ class GmailFilter(FilterInterface):
             if ts2 < ts1:
                 return False
         if link.is_deleted():
-            return self.__is_deleted
-        if not self.__is_missing:
+            return self.is_match_deleted()
+        if not self.is_match_missing():
             return True
         ids_from_server: dict[str, any] = d["server-data"]
-        return self.__is_missing and link.id() not in ids_from_server
+        return self.is_match_missing() and link.id() not in ids_from_server

@@ -62,7 +62,7 @@ def test_match_metadata_deleted():
             "server-data": {},
         }
     )
-    f.is_deleted()
+    f.with_match_deleted()
     assert f.match(
         {
             "message-id": "abc",
@@ -81,7 +81,7 @@ def test_match_metadata_missing():
             LinkInterface.property_metadata: True,
         }
     )
-    f.is_missing()
+    f.with_match_missing()
     assert f.match(
         {
             "message-id": "abc",

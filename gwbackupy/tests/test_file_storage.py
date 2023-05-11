@@ -132,6 +132,7 @@ def test_mutations():
         assert link2 in links
         deleted_found = False
         for link in links:
+            link: LinkInterface
             if link.is_deleted():
                 assert not deleted_found
                 deleted_found = True
