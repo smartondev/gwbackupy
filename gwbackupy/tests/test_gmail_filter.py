@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from gwbackupy.filters.gmail_filter import GmailFilter
 from gwbackupy.storage.storage_interface import LinkInterface
 from gwbackupy.tests.mock_storage import MockStorage
@@ -110,3 +112,79 @@ def test_with_methods():
     assert f.is_match_missing()
     f.with_match_missing(False)
     assert not f.is_match_missing()
+
+
+def test_with_date_to():
+    f = GmailFilter()
+    ms = MockStorage()
+    link = ms.new_link("abc", "json")
+    filter_date = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    if datetime.now().timestamp() < filter_date.timestamp():
+        raise Exception("The test is not valid if the filter date is in the future")
+    f.with_date_to(filter_date)
+    assert not f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    f.with_date_to(None)
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+
+
+def test_with_date_from():
+    f = GmailFilter()
+    ms = MockStorage()
+    f.with_date_from(datetime(2021, 1, 1, tzinfo=timezone.utc))
+    link = ms.new_link(
+        "abc",
+        "json",
+        created_timestamp=datetime(2020, 1, 1, tzinfo=timezone.utc).timestamp(),
+    )
+    link.set_mutation_timestamp(datetime(2019, 1, 1, tzinfo=timezone.utc))
+    assert not f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    f.with_date_from(None)
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": ms.new_link("abc", "json"),
+            "server-data": {},
+        }
+    )
+
+
+def test_with_date_from_and_to():
+    f = GmailFilter()
+    ms = MockStorage()
+    link = ms.new_link("abc", "json")
+    link.set_mutation_timestamp(datetime(2020, 1, 1, tzinfo=timezone.utc))
+    f.with_date_from(datetime(2021, 1, 1, tzinfo=timezone.utc))
+    f.with_date_to(datetime(2022, 2, 1, tzinfo=timezone.utc))
+    assert not f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
+    link.set_mutation_timestamp(datetime(2021, 5, 5, tzinfo=timezone.utc))
+    assert f.match(
+        {
+            "message-id": "abc",
+            "link": link,
+            "server-data": {},
+        }
+    )
