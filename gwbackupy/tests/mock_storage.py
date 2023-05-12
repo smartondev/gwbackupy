@@ -29,6 +29,12 @@ class MockLink(LinkInterface):
     def mutation(self) -> str:
         return self.get_property(LinkInterface.property_mutation)
 
+    def set_mutation_timestamp(self, mutation: datetime):
+        if isinstance(mutation, datetime):
+            mutation = mutation.timestamp()
+        mutation = str(int(mutation * 1000))
+        self.set_properties({LinkInterface.property_mutation: mutation})
+
     def id(self) -> str:
         return self.__id
 

@@ -245,24 +245,30 @@ def cli_startup():
                     args.add_labels = ["gwbackupy"]
                 item_filter = GmailFilter()
                 if args.restore_deleted:
-                    item_filter.is_deleted()
+                    item_filter.with_match_deleted()
                     logging.info("Filter options: deleted")
                 if args.restore_missing:
-                    item_filter.is_missing()
+                    item_filter.with_match_missing()
                     logging.info("Filter options: missing")
                 if args.filter_date_from is not None:
                     dt = parse_date(args.filter_date_from, args.timezone)
-                    item_filter.date_from(dt)
+                    item_filter.with_date_from(dt)
                     logging.info(f"Filter options: date from {dt}")
                 if args.filter_date_to is not None:
                     dt = parse_date(args.filter_date_to, args.timezone)
-                    item_filter.date_to(dt)
+                    item_filter.with_date_to(dt)
                     logging.info(f"Filter options: date to {dt}")
+
+                if (
+                    not item_filter.is_match_deleted()
+                    and not item_filter.is_match_missing()
+                ):
+                    logging.warning("Tasks not found, see more e.g. --restore-deleted")
+                    return True
+
                 if gmail.restore(
                     to_email=args.to_email,
                     item_filter=item_filter,
-                    restore_deleted=args.restore_deleted,
-                    restore_missing=args.restore_missing,
                     add_labels=args.add_labels,
                 ):
                     exit(0)

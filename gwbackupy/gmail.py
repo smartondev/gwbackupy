@@ -468,7 +468,8 @@ class Gmail:
             logging.debug(f"{restore_message_id} {meta}")
             with self.storage.get(link[1]) as mf:
                 message_content = gzip.decompress(mf.read())
-            label_ids_from_message: [str] = meta["labelIds"]
+            # meta without labelIds is valid from server
+            label_ids_from_message: [str] = meta.get("labelIds", [])
             try:
                 label_ids_from_message.index("CHAT")
                 # not restorable as message
@@ -486,7 +487,7 @@ class Gmail:
                 label_ids_from_message=label_ids_from_message,
             )
             label_names = []
-            for label_id in meta["labelIds"]:
+            for label_id in label_ids_from_message:
                 label_names.append(labels_form_server[label_id]["name"])
 
             logging.info(
@@ -540,17 +541,11 @@ class Gmail:
         self,
         item_filter: FilterInterface,
         to_email: str | None = None,
-        restore_deleted: bool = False,
         add_labels: list[str] | None = None,
-        restore_missing: bool = False,
     ):
         self.__error_count = 0
         if to_email is None:
             to_email = self.email
-
-        if not restore_deleted and not restore_missing:
-            logging.warning("Tasks not found, see more e.g. --restore-deleted")
-            return True
 
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()

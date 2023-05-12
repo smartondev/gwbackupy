@@ -1,7 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 from typing import Union
-
-import tzlocal
 
 from gwbackupy.filters.filter_interface import FilterInterface
 from gwbackupy.storage.storage_interface import LinkInterface
@@ -15,20 +15,35 @@ class GmailFilter(FilterInterface):
         self.__is_deleted: bool = False
         self.__is_missing: bool = False
 
-    def date_to(self, dt: datetime):
+    def with_date_to(self, dt: datetime | None):
+        if dt is None:
+            self.__date_to = None
+            return
         self.__date_to = dt.astimezone(timezone.utc)
 
-    def date_from(self, dt: datetime):
+    def with_date_from(self, dt: datetime | None):
+        if dt is None:
+            self.__date_to = None
+            return
         self.__date_from = dt.astimezone(timezone.utc)
 
-    def is_deleted(self):
-        self.__is_deleted = True
+    def with_match_deleted(self, match_deleted: bool = True):
+        self.__is_deleted = match_deleted
 
-    def is_missing(self):
-        self.__is_missing = True
+    def is_match_deleted(self) -> bool:
+        return self.__is_deleted
+
+    def with_match_missing(self, match_missing: bool = True):
+        self.__is_missing = match_missing
+
+    def is_match_missing(self) -> bool:
+        return self.__is_missing
 
     def match(self, d: any) -> bool:
         d: dict[str, any]
+        """
+        :param d: data dict with keys: "link", "server-data", "message-id"
+        """
         link: LinkInterface = d["link"]
         if link.is_object():
             return True
@@ -43,15 +58,9 @@ class GmailFilter(FilterInterface):
             ts2 = int(link.mutation()) / 1000.0
             if ts2 < ts1:
                 return False
-        if not self.__is_deleted and not self.__is_missing:
-            # no missing or deleted filter
+        if link.is_deleted():
+            return self.is_match_deleted()
+        if not self.is_match_missing():
             return True
-        if self.__is_deleted and link.is_deleted():
-            # deleted
-            return True
-        if self.__is_missing:
-            ids_from_server: dict[str, any] = d["server-data"]
-            if link.id() not in ids_from_server:
-                # missing
-                return True
-        return False
+        ids_from_server: dict[str, any] = d["server-data"]
+        return self.is_match_missing() and link.id() not in ids_from_server
