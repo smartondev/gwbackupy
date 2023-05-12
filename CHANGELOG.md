@@ -2,6 +2,7 @@
 
 ## DEV
 
+- Bug: fix gmail restore without labelIds in stored message metadata
 
 ## 0.11.0
 

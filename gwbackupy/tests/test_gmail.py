@@ -153,9 +153,46 @@ def test_restore_with_label_recreate(to_email: str, clear_labels: bool):
     restored_message = list(messages.values())[0]
     restored_label_ids = restored_message["labelIds"]
     reloaded_labels = sw.get_labels(to_email)
-    assert len(restored_label_ids) >= 2
+    assert len(restored_label_ids) == 2
     assert __find_label_by_label_name(reloaded_labels, label1["name"])
     assert __find_label_by_label_name(reloaded_labels, label2["name"])
+
+
+def test_restore_without_label_ids_key():
+    """
+    Test that restore works when labelIds key is missing in message metadata
+    """
+    ms = MockStorage()
+    sw = MockGmailServiceWrapper()
+    message_id = random_string()
+    message_raw = bytes(f"Message body... {message_id}", "utf-8")
+    email = "example@example.com"
+    to_email = "example-to@example.com"
+    sw.inject_message(
+        email,
+        {
+            "id": message_id,
+            "raw": encode_base64url(message_raw),
+            "internalDate": str(int(datetime.now().timestamp() * 1000)),
+            "snippet": "A short snippet",
+        },
+    )
+    gmail = Gmail(
+        email=email,
+        storage=ms,
+        service_wrapper=sw,
+    )
+    assert gmail.backup()
+    sw.inject_messages_clear()
+    sw.inject_labels_clear()
+    filtr = GmailFilter()
+    filtr.with_match_missing()
+    assert gmail.restore(filtr, add_labels=[], to_email=to_email)
+    messages = sw.get_messages(to_email, q="all")
+    assert len(messages) == 1
+    restored_message = list(messages.values())[0]
+    restored_label_ids = restored_message["labelIds"]
+    assert len(restored_label_ids) == 0
 
 
 def __find_label_by_label_name(
