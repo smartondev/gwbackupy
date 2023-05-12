@@ -258,11 +258,17 @@ def cli_startup():
                     dt = parse_date(args.filter_date_to, args.timezone)
                     item_filter.with_date_to(dt)
                     logging.info(f"Filter options: date to {dt}")
+
+                if (
+                    not item_filter.is_match_deleted()
+                    and not item_filter.is_match_missing()
+                ):
+                    logging.warning("Tasks not found, see more e.g. --restore-deleted")
+                    return True
+
                 if gmail.restore(
                     to_email=args.to_email,
                     item_filter=item_filter,
-                    restore_deleted=args.restore_deleted,
-                    restore_missing=args.restore_missing,
                     add_labels=args.add_labels,
                 ):
                     exit(0)

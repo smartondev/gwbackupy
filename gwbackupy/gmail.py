@@ -540,17 +540,11 @@ class Gmail:
         self,
         item_filter: FilterInterface,
         to_email: str | None = None,
-        restore_deleted: bool = False,
         add_labels: list[str] | None = None,
-        restore_missing: bool = False,
     ):
         self.__error_count = 0
         if to_email is None:
             to_email = self.email
-
-        if not restore_deleted and not restore_missing:
-            logging.warning("Tasks not found, see more e.g. --restore-deleted")
-            return True
 
         logging.info("Scanning backup storage...")
         stored_data_all = self.storage.find()
