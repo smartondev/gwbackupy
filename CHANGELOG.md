@@ -3,7 +3,7 @@
 ## DEV
 
 - Bug: fix gmail restore without labelIds in stored message metadata
-- Enh: update dependencies, CI (min python 3.9)
+- Enh: update dependencies, CI, min python 3.9
 
 ## 0.11.0
 
