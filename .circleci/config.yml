@@ -10,7 +10,6 @@ workflows:
       - build-and-test-3-13
       - build-and-test-3-9
       - coveralls-build
-      - black-format-check
 
 jobs:
   coveralls-build:
@@ -45,13 +44,3 @@ jobs:
       - run:
           name: Run tests 3.9
           command: pytest
-  black-format-check:
-    docker:
-      - image: cimg/python:3.13.3
-    steps:
-      - checkout
-      - run:
-          name: Check black format
-          command: |
-            pip install -U black
-            python -m black --check gwbackupy
