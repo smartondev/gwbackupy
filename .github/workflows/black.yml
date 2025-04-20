@@ -1,0 +1,30 @@
+name: Black Format Check
+
+on:
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENSE'
+      - '.github/**'
+      - '.gitignore'
+      - 'SECURITY.md'
+
+jobs:
+  black-format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.13"
+
+      - name: Install black
+        run: pip install black
+
+      - name: Run black format check
+        run: black --check gwbackupy
