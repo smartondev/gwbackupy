@@ -133,10 +133,10 @@ class Gmail:
             # TODO: option for force raw mode
             message_format = "raw"
             if not is_new and stored_messages[message_id][1] is not None:
-                stored_messages[message_id][
-                    1
-                ] = self.__fix_content_hash_to_message_object(
-                    message_id, stored_messages[message_id][1]
+                stored_messages[message_id][1] = (
+                    self.__fix_content_hash_to_message_object(
+                        message_id, stored_messages[message_id][1]
+                    )
                 )
                 message_format = "minimal"
             data = self.__get_message_from_server(message_id, message_format)

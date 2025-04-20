@@ -39,7 +39,7 @@ You can enable the APIs for the services you want to use based on this descripti
 
 **Do not share the key file with anyone and do not make it accessible on the internet.**
 
-You have successfully completed the steps. ű
+You have successfully completed the steps.
 All you have to do now is to provide the path of the key file as a parameter for gwbackupy.
 
 ## 6. Delegating the service account to all users in Google Workspace™. (Optional)
