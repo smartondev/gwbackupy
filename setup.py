@@ -45,4 +45,5 @@ setup(
         "Topic :: Utilities",
         "Typing :: Typed",
     ],
+    test_suite='pytest',
 )
