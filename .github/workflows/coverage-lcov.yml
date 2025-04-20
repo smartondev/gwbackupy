@@ -1,0 +1,39 @@
+name: Coverage LCOV
+
+on:
+  push:
+    paths-ignore:
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'LICENSE'
+      - '.github/**'
+      - '.gitignore'
+      - 'SECURITY.md'
+
+jobs:
+  coverage-lcov:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install -r lcov-requirements.txt
+
+      - name: Run tests with coverage
+        run: coverage run -a --source=gwbackupy -m pytest
+
+      - name: Generate LCOV report
+        run: coverage-lcov
+
+      - name: Upload LCOV report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov-report
+          path: lcov.info
