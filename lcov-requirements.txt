@@ -1,5 +1,5 @@
 -r requirements.txt
 pytest~=8.3.5
-coveralls~=3.3.1
-coverage-lcov~=0.3.0
+coveralls
+coverage-lcov
 parametrize_from_file~=0.20.0
