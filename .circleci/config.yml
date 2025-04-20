@@ -8,7 +8,7 @@ workflows:
   testing:
     jobs:
       - build-and-test-3-10
-      - build-and-test-3-7
+      - build-and-test-3-9
       - coveralls-build
       - black-format-check
 
@@ -34,16 +34,16 @@ jobs:
       - run:
           name: Run tests 3.10
           command: pytest
-  build-and-test-3-7:
+  build-and-test-3-9:
     docker:
-      - image: cimg/python:3.7
+      - image: cimg/python:3.9
     steps:
       - checkout
       - python/install-packages:
           pip-dependency-file: lcov-requirements.txt
           pkg-manager: pip
       - run:
-          name: Run tests 3.7
+          name: Run tests 3.9
           command: pytest
   black-format-check:
     docker:
