@@ -1,4 +1,4 @@
-name: Black Format Check
+name: Pytest
 
 on:
   push:
