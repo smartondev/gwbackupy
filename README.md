@@ -103,6 +103,7 @@ Backup run in CLI:
 ```bash
 gwbackupy \
   --service-account-key-filepath <service-acount-json-key-file> \
+#  --credentials-filepath <client-secret-json> \    # or with OAUTH
   --batch-size 5 \
   gmail backup \
   --email <mailbox email address>
@@ -113,6 +114,7 @@ Restore run in CLI:
 ```bash
 gwbackupy \
   --service-account-key-filepath <service-acount-json-key-file> \
+#  --credentials-filepath <client-secret-json> \    # or with OAUTH
   --batch-size 5 \
   gmail restore \
   --add-label "backup-restore-1231" \
