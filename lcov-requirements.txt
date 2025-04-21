@@ -1,5 +1,0 @@
--r requirements.txt
-pytest~=8.3.5
-coveralls
-coverage-lcov
-parametrize_from_file~=0.20.0
