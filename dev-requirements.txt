@@ -1,2 +1,5 @@
--r lcov-requirements.txt
-click~=8.1.8
+-r requirements.txt
+pytest~=8.3.5
+coveralls~=3.3.1
+coverage-lcov~=0.2.5
+parametrize_from_file~=0.20.0
