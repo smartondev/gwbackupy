@@ -2,10 +2,11 @@
 
 [![0.2.0](https://img.shields.io/github/v/release/smartondev/gwbackupy)](https://github.com/smartondev/gwbackupy/releases)
 [![0.2.0](https://img.shields.io/pypi/v/gwbackupy)](https://pypi.org/project/gwbackupy/)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/gwbackupy)
 [![BSD-3-Clause](https://img.shields.io/github/license/smartondev/gwbackupy)](LICENSE)
-[![black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+![black - GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/smartondev/gwbackupy/black.yml?label=black)
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/smartondev/gwbackupy)](https://coveralls.io/github/smartondev/gwbackupy?branch=main)
-[![](https://img.shields.io/circleci/build/github/smartondev/gwbackupy?label=circleci)](https://app.circleci.com/pipelines/github/smartondev/gwbackupy?branch=main)
+![pytest - GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/smartondev/gwbackupy/pytest.yml?label=pytest)
 [![](https://img.shields.io/github/actions/workflow/status/smartondev/gwbackupy/publish-pypi.yml?label=publish-pypi)](https://github.com/smartondev/gwbackupy/actions/workflows/publish-pypi.yml)
 
 ## What is it?
