@@ -34,6 +34,8 @@ Thumbs.db
 /gwbackupy.egg-info
 /dist
 /env
+**/__pycache__
+.venv
 .pytest_cache
 .coverage
 lcov.info

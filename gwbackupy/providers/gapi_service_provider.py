@@ -10,7 +10,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account
 
 from gwbackupy.providers.service_provider_interface import (
     ServiceProviderInterface,
@@ -104,29 +104,20 @@ class GapiServiceProvider(ServiceProviderInterface):
         """get credentials by service account access"""
         extension = self.service_account_file_path.split(".")[-1].lower()
         if extension == "p12":
-            if (
-                self.service_account_email is None
-                or self.service_account_email.strip() == ""
-            ):
-                raise Exception(
-                    f"{email} Service account email is required for p12 keyfile"
-                )
-            credentials = ServiceAccountCredentials.from_p12_keyfile(
-                self.service_account_email,
-                self.service_account_file_path,
-                "notasecret",
-                scopes=self.scopes,
+            raise Exception(
+                f"{email} P12 key files are no longer supported. "
+                "Please generate a JSON key file from Google Cloud Console: "
+                "https://console.cloud.google.com/iam-admin/serviceaccounts"
             )
         elif extension == "json":
-            credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            credentials = service_account.Credentials.from_service_account_file(
                 self.service_account_file_path,
-                self.scopes,
+                scopes=self.scopes,
             )
-            pass
         else:
             raise Exception(f"{email} Not supported service account file extension")
 
-        credentials = credentials.create_delegated(email)
+        credentials = credentials.with_subject(email)
         return credentials
 
     def __get_credentials_by_oauth(self, email: str, access_init: bool = True):

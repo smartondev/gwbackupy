@@ -30,7 +30,7 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
 - Run from CLI or run directly from python code
 - Authentication
     - OAUTH for free or paid plans (not recommended for paid plans)
-    - Service account file (JSON or P12) for paid plans (can be configured to access all accounts in workspace.)
+    - Service account file (JSON) for paid plans (can be configured to access all accounts in workspace.)
 - Version controlled storage interface
 
   Allows to restore specific moments without using an external snapshot system (eg. zips, file system with snapshot).

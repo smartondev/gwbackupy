@@ -4,6 +4,8 @@
 
 - Bug: fix gmail restore without labelIds in stored message metadata
 - Enh: update dependencies, CI, min python 3.9
+- Enh: migrate service account auth from `oauth2client` to `google.oauth2`
+- **BC break**: P12 key files are no longer supported, use JSON key files instead
 
 ## 0.11.0
 

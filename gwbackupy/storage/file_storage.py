@@ -219,7 +219,7 @@ class FileStorage(StorageInterface):
 
     @staticmethod
     def __gen_mutation():
-        return str(int(datetime.utcnow().timestamp() * 1000))
+        return str(int(datetime.now(tz=timezone.utc).timestamp() * 1000))
 
     def get(self, link: FileLink) -> IO[bytes]:
         file_path = link.get_file_path()
