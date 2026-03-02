@@ -7,7 +7,7 @@ on:
       - 'CHANGELOG.md'
       - 'CONTRIBUTING.md'
       - 'LICENSE'
-      - '.github/**'
+      - '.github/ISSUE_TEMPLATE/**''
       - '.gitignore'
       - 'SECURITY.md'
 

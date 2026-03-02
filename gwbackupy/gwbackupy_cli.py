@@ -3,7 +3,8 @@ import logging
 import sys
 import threading
 
-import pytz as pytz
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
 from tzlocal import get_localzone
 
 import gwbackupy.global_properties as global_properties
@@ -16,6 +17,13 @@ from gwbackupy.providers.gmail_service_provider import GmailServiceProvider
 from gwbackupy.storage.file_storage import FileStorage
 
 lock = threading.Lock()
+
+
+def _parse_timezone(s: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(s)
+    except (ZoneInfoNotFoundError, KeyError):
+        raise argparse.ArgumentTypeError(f"unknown timezone: '{s}'")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -45,7 +53,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--timezone",
-        type=lambda s: pytz.timezone(s),
+        type=_parse_timezone,
         help="time zone",
         default=get_localzone(),
     )
@@ -61,7 +69,7 @@ def parse_arguments() -> argparse.Namespace:
         "--service-account-email",
         type=str,
         default=None,
-        help="Email of the service account (required for p12 keyfile)",
+        help="Email of the service account",
     )
     parser.add_argument(
         "--service-account-key-filepath",

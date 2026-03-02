@@ -3,13 +3,12 @@ from __future__ import annotations
 import base64
 import random
 import string
-from datetime import datetime
+from datetime import datetime, tzinfo
 import json
 import logging
 from json import JSONDecodeError
 from typing import IO
 
-import tzlocal
 from googleapiclient.errors import HttpError
 
 
@@ -36,7 +35,7 @@ def encode_base64url(data):
     return base64.urlsafe_b64encode(data).decode("utf-8").replace("=", "")
 
 
-def parse_date(date: str, tz: tzlocal) -> datetime:
+def parse_date(date: str, tz: tzinfo) -> datetime:
     """
     Parse a date string and return a datetime object with the corresponding timezone.
     :param date: string representing a date in the format "YYYY-MM-DD" or 'YYYY-MM-DD hh:mm:ss'

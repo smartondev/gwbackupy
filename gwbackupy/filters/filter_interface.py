@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 from builtins import bool
 
-import tzlocal
-
 
 class FilterInterface:
     def __init__(self):
