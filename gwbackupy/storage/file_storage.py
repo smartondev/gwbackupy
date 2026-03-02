@@ -19,7 +19,6 @@ from gwbackupy.storage.storage_interface import (
     LinkList,
 )
 
-
 # Directory structure v2
 # /[<path>]
 #    - <id>.<propname>=<propvalue>.<propname>=<propvalue>.<ext>
