@@ -7,7 +7,7 @@ on:
       - 'CHANGELOG.md'
       - 'CONTRIBUTING.md'
       - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**''
+      - '.github/ISSUE_TEMPLATE/**'
       - '.gitignore'
       - 'SECURITY.md'
 
@@ -15,16 +15,17 @@ jobs:
   pytest:
     strategy:
       matrix:
-        python-version: [3.9, 3.10, 3.11, 3.12, 3.13]
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
       - name: Install dependencies
         run: pip install -r dev-requirements.txt

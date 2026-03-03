@@ -60,6 +60,9 @@ class Gmail:
         self.__services = {}
         self.__error_count = 0
         self.__service_wrapper = service_wrapper
+        self.__new_count = 0
+        self.__updated_count = 0
+        self.__not_found_count = 0
         if labels is None:
             labels = []
         self.labels = labels
@@ -95,7 +98,7 @@ class Gmail:
             link, data=gzip.compress(raw_message, compresslevel=9)
         )
         if result:
-            logging.info(f"{message_id} message is saved")
+            logging.debug(f"{message_id} message is saved")
         else:
             raise Exception("Mail message save failed")
 
@@ -142,13 +145,13 @@ class Gmail:
             data = self.__get_message_from_server(message_id, message_format)
             if data is None:
                 # (deleted)
-                logging.info(f"{message_id} is not found on server")
+                logging.debug(f"{message_id} is not found on server")
+                with self.__lock:
+                    self.__not_found_count += 1
                 return
 
             subject = str_trim(data.get("snippet", ""), 64)
-            if is_new:
-                logging.info(f"{message_id} new message, snippet: {subject}")
-            else:
+            if not is_new:
                 logging.debug(f"{message_id} Snippet: {subject}")
 
             create_timestamp = int(data["internalDate"]) / 1000.0
@@ -183,11 +186,20 @@ class Gmail:
                 ).set_properties({LinkInterface.property_metadata: True})
                 success = self.__storage_put(link, data=json.dumps(data))
                 if success:
-                    logging.info(f"{message_id} meta data is saved")
+                    logging.debug(f"{message_id} meta data is saved")
                 else:
                     raise Exception("Meta data put failed")
             else:
                 logging.debug(f"{message_id} meta data is not changed, skip put")
+            if is_new:
+                snippet_part = f", snippet: {subject}" if subject else ""
+                logging.debug(f"{message_id} backed up (new){snippet_part}")
+                with self.__lock:
+                    self.__new_count += 1
+            elif write_meta:
+                logging.debug(f"{message_id} backed up (updated)")
+                with self.__lock:
+                    self.__updated_count += 1
             if message_id in stored_messages:
                 del stored_messages[message_id]
         except Exception as e:
@@ -202,9 +214,9 @@ class Gmail:
     ):
         if email is None:
             email = self.email
-        logging.info("Get all message ids from server...")
+        logging.debug("Get all message ids from server...")
         messages = self.__service_wrapper.get_messages(email, q)
-        logging.info(f"Message(s) count: {len(messages)}")
+        logging.debug(f"Message(s) count: {len(messages)}")
         # print(count)
         # print(messages)
         return messages
@@ -212,11 +224,11 @@ class Gmail:
     def __get_labels_from_server(self, email=None) -> list[dict[str, any]]:
         if email is None:
             email = self.email
-        logging.info(f"Getting labels from server ({email})")
+        logging.debug(f"Getting labels from server ({email})")
         return self.__service_wrapper.get_labels(email)
 
     def __backup_labels(self, link: LinkInterface | None) -> bool:
-        logging.info("Backing up labels...")
+        logging.debug("Backing up labels...")
         labels = self.__get_labels_from_server()
         if link is not None:
             logging.debug("labels is exists, checking for changes")
@@ -224,7 +236,7 @@ class Gmail:
                 with self.storage.get(link) as f:
                     d = json.load(f)
                     if d == labels:
-                        logging.info("Labels is not changed, not saving it")
+                        logging.debug("Labels is not changed, not saving it")
                         return True
                     else:
                         logging.debug("labels is changed")
@@ -237,7 +249,7 @@ class Gmail:
         if not result:
             logging.error("Error while storing labels")
             return False
-        logging.info("Backing up labels successfully")
+        logging.debug("Backing up labels successfully")
         return True
 
     def __storage_remove(self, link: LinkInterface) -> bool:
@@ -255,10 +267,13 @@ class Gmail:
     def backup(self, quick_sync_days: int | None = None) -> bool:
         logging.info(f"Starting backup for {self.email}")
         self.__error_count = 0
+        self.__new_count = 0
+        self.__updated_count = 0
+        self.__not_found_count = 0
 
-        logging.info("Scanning backup storage...")
+        logging.debug("Scanning backup storage...")
         stored_data_all = self.storage.find()
-        logging.info(f"Stored items: {len(stored_data_all)}")
+        logging.debug(f"Stored items: {len(stored_data_all)}")
 
         labels_link = stored_data_all.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata
@@ -276,6 +291,7 @@ class Gmail:
             g=lambda l: [l.id(), 0 if l.is_metadata() else 1],
         )
         del stored_data_all
+        stored_messages_total = len(stored_messages)
         for message_id in list(stored_messages.keys()):
             link_metadata = stored_messages[message_id].get(0)
             if link_metadata is None:
@@ -289,14 +305,21 @@ class Gmail:
                     global_properties.log_finest,
                     f"{message_id} is usable from backup storage",
                 )
-        logging.info(f"Stored messages: {len(stored_messages)}")
-
+        stored_deleted_count = stored_messages_total - len(stored_messages)
         q = "label:all"
         if quick_sync_days is not None:
             date = datetime.now() - timedelta(days=quick_sync_days)
             q = f"label:all after:{date.strftime('%Y/%m/%d')}"
         messages_from_server = self.__get_all_messages_from_server(q=q)
-        logging.info("Processing...")
+        logging.info(
+            f"Messages on server: {len(messages_from_server)}, active in local storage: {len(stored_messages)}"
+            + (
+                f" (+{stored_deleted_count} deleted)"
+                if stored_deleted_count > 0
+                else ""
+            )
+        )
+        logging.debug("Processing...")
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
         futures = []
         # submit message download jobs
@@ -314,7 +337,14 @@ class Gmail:
             executor.shutdown(cancel_futures=True)
             logging.warning("Process is killed")
             return False
-        logging.info("Processed")
+        logging.info(
+            f"Backup summary: {self.__new_count} new, {self.__updated_count} updated"
+            + (
+                f", {self.__not_found_count} removed from server"
+                if self.__not_found_count > 0
+                else ""
+            )
+        )
 
         if self.__error_count > 0:
             # if error then never delete!
@@ -322,7 +352,8 @@ class Gmail:
             return False
 
         if quick_sync_days is None:
-            logging.info("Mark as deletes...")
+            logging.debug("Mark as deletes...")
+            deleted_count = 0
             for message_id in stored_messages:
                 if is_killed():
                     logging.warning("Process is killed")
@@ -338,18 +369,20 @@ class Gmail:
                     logging.debug(f"{message_id} metadata mark as deleted successfully")
                     message_link = links.get(1)
                     if message_link is None:
-                        logging.info(f"{message_id} marked as deleted")
+                        logging.debug(f"{message_id} marked as deleted")
+                        deleted_count += 1
                     else:
                         if self.__storage_remove(message_link):
                             logging.debug(
                                 f"{message_id} object mark as deleted successfully"
                             )
-                            logging.info(f"{message_id} marked as deleted")
+                            logging.debug(f"{message_id} marked as deleted")
+                            deleted_count += 1
                         else:
                             logging.error(f"{message_id} object mark as deleted fail")
                 else:
                     logging.error(f"{message_id} mark as deleted failed")
-            logging.info("Mark as deleted: complete")
+            logging.info(f"Marked as deleted: {deleted_count}")
         else:
             logging.info("Quick syncing mode, skip deletion for locale storage")
         logging.info(f"Backup finished for {self.email}")
@@ -460,7 +493,7 @@ class Gmail:
         add_labels: [str],
     ):
         try:
-            logging.info(f"{restore_message_id} Restoring message...")
+            logging.debug(f"{restore_message_id} Restoring message...")
             if 0 not in link or 1 not in link:
                 raise Exception("Metadata and/or message link not found in storage")
             with self.storage.get(link[0]) as mf:
@@ -473,7 +506,7 @@ class Gmail:
             try:
                 label_ids_from_message.index("CHAT")
                 # not restorable as message
-                logging.info(
+                logging.warning(
                     f"{restore_message_id} message with CHAT label is not supported."
                 )
                 return
@@ -490,7 +523,7 @@ class Gmail:
             for label_id in label_ids_from_message:
                 label_names.append(labels_form_server[label_id]["name"])
 
-            logging.info(
+            logging.debug(
                 f"{restore_message_id} snippet: {str_trim(meta['snippet'], 80)} / labels: {', '.join(label_names)}"
             )
 
@@ -503,7 +536,7 @@ class Gmail:
                 logging.info(f"DRY MODE {restore_message_id} message insert")
             result = self.__service_wrapper.insert_message(to_email, message_data)
             logging.debug(f"Message uploaded {result}")
-            logging.info(
+            logging.debug(
                 f'{restore_message_id}->{result.get("id")} Message uploaded ({subject})'
             )
             return result
@@ -515,7 +548,7 @@ class Gmail:
     def __load_labels_from_storage(
         self, links: LinkList[LinkInterface]
     ) -> dict[str, dict[str, any]] | None:
-        logging.info(f"Loading labels...")
+        logging.debug(f"Loading labels...")
         labels_links: dict[str, LinkInterface] = links.find(
             f=lambda l: l.id() == Gmail.object_id_labels and l.is_metadata,
             g=lambda l: [l.mutation()],
@@ -534,7 +567,7 @@ class Gmail:
                         logging.error(f"Invalid structure of stored labels")
                         return None
                     result[item.get("id")] = item
-        logging.info(f"Labels loaded successfully ({len(result)})")
+        logging.debug(f"Labels loaded successfully ({len(result)})")
         return result
 
     def restore(
@@ -547,9 +580,9 @@ class Gmail:
         if to_email is None:
             to_email = self.email
 
-        logging.info("Scanning backup storage...")
+        logging.debug("Scanning backup storage...")
         stored_data_all = self.storage.find()
-        logging.info(f"Stored items: {len(stored_data_all)}")
+        logging.debug(f"Stored items: {len(stored_data_all)}")
 
         latest_labels_from_storage = self.__load_labels_from_storage(stored_data_all)
         if latest_labels_from_storage is None:
@@ -569,7 +602,7 @@ class Gmail:
         if self.email == to_email:
             messages_from_server_dest_email = self.__get_all_messages_from_server()
 
-        logging.info("Filtering messages...")
+        logging.debug("Filtering messages...")
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: not l.is_special_id()
             and (l.is_metadata() or l.is_object())
@@ -592,7 +625,7 @@ class Gmail:
                 del stored_messages[message_id]
 
         logging.info(f"Number of potentially affected messages: {len(stored_messages)}")
-        logging.info("Upload messages...")
+        logging.debug("Upload messages...")
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
         futures = []
         for message_id in stored_messages:

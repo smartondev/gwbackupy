@@ -2,6 +2,10 @@
 
 ## DEV
 
+- Enh: improve logging
+
+## 0.12.0
+
 - Bug: fix gmail restore without labelIds in stored message metadata
 - Enh: update dependencies, CI, min python 3.9
 - Enh: migrate service account auth from `oauth2client` to `google.oauth2`
