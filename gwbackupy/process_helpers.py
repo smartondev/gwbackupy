@@ -39,7 +39,7 @@ def is_killed_handling_func(*args):
     global is_killed_lock
     with is_killed_lock:
         global is_killed_value
-        logging.info("Handle kill signal")
+        logging.warning("Handle kill signal")
         is_killed_value = True
 
 
@@ -65,16 +65,21 @@ def await_all_futures(futures: list[Future], sleep_step: float = 0.1) -> bool:
     :param sleep_step: time to wait between each check
     :return: True if all futures are done, False otherwise
     """
+    total = len(futures)
+    if total > 1000:
+        log_step = 10
+    else:
+        log_step = 0
+    last_logged_step = 0
     while not is_killed():
         if not sleep_kc(1, sleep_step=sleep_step):
             return False
-        has_not_done = False
-        for f in futures:
-            if not f.done():
-                has_not_done = True
-                break
-        if has_not_done:
-            continue
-        else:
+        done_count = sum(1 for f in futures if f.done())
+        if log_step > 0 and total > 0:
+            current_step = int(done_count / total * 100) // log_step * log_step
+            if current_step > last_logged_step:
+                last_logged_step = current_step
+                logging.info(f"Processing... ({current_step}%)")
+        if done_count >= total:
             break
     return not is_killed()

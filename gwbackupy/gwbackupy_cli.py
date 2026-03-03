@@ -196,6 +196,7 @@ def parse_arguments() -> argparse.Namespace:
         format=Log_Format,
         level=log_levels[args.log_level],
     )
+    logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.WARNING)
     logging.debug(f"CLI parameters: {sys.argv}")
     if (
         args.credentials_filepath is None and args.service_account_key_filepath is None

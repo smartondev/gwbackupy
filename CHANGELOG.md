@@ -2,6 +2,7 @@
 
 ## DEV
 
+- Enh: improve logging
 
 ## 0.12.0
 
