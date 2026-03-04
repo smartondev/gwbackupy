@@ -43,6 +43,7 @@ Due to [gmvault](https://github.com/gaubert/gmvault) limitations:
     - full backup continuously (periodically rerunning)
 
       Scanning the full mailbox, but download only the new messages and mark the deleted messages.
+    - Quick sync mode (fetch all IDs, download only new messages, mark deleted)
     - Quick backup (sync the last N days)
 - Gmail restore
     - restore deleted message in specified interval
@@ -107,6 +108,27 @@ gwbackupy \
   --batch-size 5 \
   gmail backup \
   --email <mailbox email address>
+```
+
+Quick sync backup (faster, skips re-downloading existing messages):
+
+```bash
+gwbackupy \
+  --service-account-key-filepath <service-acount-json-key-file> \
+  gmail backup \
+  --email <mailbox email address> \
+  --quick-sync
+```
+
+Quick sync with label/metadata change detection for the last 7 days:
+
+```bash
+gwbackupy \
+  --service-account-key-filepath <service-acount-json-key-file> \
+  gmail backup \
+  --email <mailbox email address> \
+  --quick-sync \
+  --quick-sync-days 7
 ```
 
 Restore run in CLI:

@@ -3,6 +3,7 @@
 ## DEV
 
 - Enh: improve logging
+- Enh: add `--quick-sync` mode for gmail backup (fetch all IDs, download only new messages, mark deleted, skip re-downloading existing). Can be combined with `--quick-sync-days` for label/metadata change detection within the specified period.
 
 ## 0.12.0
 

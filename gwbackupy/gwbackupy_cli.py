@@ -133,11 +133,20 @@ def parse_arguments() -> argparse.Namespace:
         "--email", type=str, help="Email of the account", required=True
     )
     gmail_backup_parser.add_argument(
+        "--quick-sync",
+        default=False,
+        help="Quick sync mode: fetches all message IDs but only downloads new messages "
+        "and marks deleted ones. Skips re-downloading existing messages.",
+        action="store_true",
+    )
+    gmail_backup_parser.add_argument(
         "--quick-sync-days",
         type=int,
         default=None,
-        help="Quick sync number of days back. (It does not delete messages from local "
-        "storage.)",
+        help="Quick sync number of days back. Without --quick-sync, it does not delete "
+        "messages from local storage. When combined with --quick-sync, checks "
+        "label/metadata changes for messages within this period (deletions are "
+        "still marked).",
     )
 
     gmail_restore_parser = gmail_command_parser.add_parser(
@@ -245,7 +254,9 @@ def cli_startup():
                 except AccessNotInitializedError:
                     exit(1)
             elif args.command == "backup":
-                if gmail.backup(quick_sync_days=args.quick_sync_days):
+                if gmail.backup(
+                    quick_sync=args.quick_sync, quick_sync_days=args.quick_sync_days
+                ):
                     exit(0)
                 else:
                     exit(1)

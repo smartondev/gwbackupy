@@ -28,7 +28,17 @@ Currently only `gmail` is supported.
 | parameter           | type   | description                                                                                                    |
 |---------------------|--------|----------------------------------------------------------------------------------------------------------------|
 | `--email`           | string | email account for backup (REQUIRED)                                                                            |
-| `--quick-sync-days` | int    | Quick syncing mode. The value is number of retroactive days. (It does not delete messages from local storage.) |
+| `--quick-sync`      |        | Quick sync mode: fetches all message IDs but only downloads new messages and marks deleted ones. Skips re-downloading existing messages. Can be combined with `--quick-sync-days`. |
+| `--quick-sync-days` | int    | Quick syncing mode. The value is number of retroactive days. (It does not delete messages from local storage.) When combined with `--quick-sync`, checks label/metadata changes for messages within the specified period. |
+
+**`--quick-sync` combined with `--quick-sync-days`**: When both flags are used together, the backup fetches the full message list from the server, downloads only new messages (raw format), marks deleted messages, and additionally checks label/metadata changes for existing messages within the last N days (minimal format). Messages older than N days are skipped entirely. This provides a good balance between speed and completeness.
+
+| Flags | Server query | Download | Marks deleted |
+|-------|-------------|----------|---------------|
+| *(none)* | All messages | New (raw) + existing (minimal) | Yes |
+| `--quick-sync-days N` | Last N days | New (raw) + existing (minimal) | No |
+| `--quick-sync` | All messages | Only new (raw) | Yes |
+| `--quick-sync --quick-sync-days N` | All messages | New (raw) + existing within N days (minimal) | Yes |
 
 #### `restore` command
 

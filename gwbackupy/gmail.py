@@ -63,6 +63,7 @@ class Gmail:
         self.__new_count = 0
         self.__updated_count = 0
         self.__not_found_count = 0
+        self.__skipped_count = 0
         if labels is None:
             labels = []
         self.labels = labels
@@ -120,7 +121,11 @@ class Gmail:
         return new_object_link
 
     def __backup_messages(
-        self, message, stored_messages: dict[str, dict[int, LinkInterface]]
+        self,
+        message,
+        stored_messages: dict[str, dict[int, LinkInterface]],
+        quick_sync: bool = False,
+        quick_sync_cutoff: datetime | None = None,
     ):
         message_id = message.get("id", "UNKNOWN")  # for logging
         try:
@@ -133,6 +138,42 @@ class Gmail:
             is_new = latest_meta_link is None
             if is_new:
                 logging.debug(f"{message_id} is new")
+
+            if quick_sync and not is_new:
+                if quick_sync_cutoff is None:
+                    logging.debug(f"{message_id} quick sync: skip existing message")
+                    with self.__lock:
+                        del stored_messages[message_id]
+                        self.__skipped_count += 1
+                    return
+                try:
+                    with self.storage.get(latest_meta_link) as mf:
+                        local_meta = json.load(mf)
+                    internal_date_raw = local_meta.get("internalDate")
+                    if internal_date_raw is None or int(internal_date_raw) == 0:
+                        logging.debug(
+                            f"{message_id} quick sync: missing internalDate, processing normally"
+                        )
+                    elif (
+                        datetime.fromtimestamp(int(internal_date_raw) / 1000)
+                        < quick_sync_cutoff
+                    ):
+                        logging.debug(
+                            f"{message_id} quick sync: skip existing message (before cutoff)"
+                        )
+                        with self.__lock:
+                            del stored_messages[message_id]
+                            self.__skipped_count += 1
+                        return
+                    logging.debug(
+                        f"{message_id} quick sync: within cutoff, checking for changes"
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"{message_id} failed to read local metadata for date check,"
+                        f" processing normally: {e}"
+                    )
+
             # TODO: option for force raw mode
             message_format = "raw"
             if not is_new and stored_messages[message_id][1] is not None:
@@ -200,8 +241,9 @@ class Gmail:
                 logging.debug(f"{message_id} backed up (updated)")
                 with self.__lock:
                     self.__updated_count += 1
-            if message_id in stored_messages:
-                del stored_messages[message_id]
+            with self.__lock:
+                if message_id in stored_messages:
+                    del stored_messages[message_id]
         except Exception as e:
             with self.__lock:
                 self.__error_count += 1
@@ -264,12 +306,15 @@ class Gmail:
             return True
         return self.storage.put(link, data)
 
-    def backup(self, quick_sync_days: int | None = None) -> bool:
+    def backup(
+        self, quick_sync: bool = False, quick_sync_days: int | None = None
+    ) -> bool:
         logging.info(f"Starting backup for {self.email}")
         self.__error_count = 0
         self.__new_count = 0
         self.__updated_count = 0
         self.__not_found_count = 0
+        self.__skipped_count = 0
 
         logging.debug("Scanning backup storage...")
         stored_data_all = self.storage.find()
@@ -283,8 +328,21 @@ class Gmail:
             return False
         if quick_sync_days is not None and quick_sync_days < 1:
             quick_sync_days = None
-        if quick_sync_days is not None:
+        if quick_sync:
+            logging.info(
+                "Quick sync mode: fetching all IDs, downloading only new messages"
+                + (
+                    f", checking changes for last {quick_sync_days} days"
+                    if quick_sync_days is not None
+                    else ""
+                )
+            )
+        elif quick_sync_days is not None:
             logging.info(f"Quick syncing, going back {quick_sync_days} days")
+
+        quick_sync_cutoff = None
+        if quick_sync and quick_sync_days is not None:
+            quick_sync_cutoff = datetime.now() - timedelta(days=quick_sync_days)
 
         stored_messages: dict[str, dict[int, LinkInterface]] = stored_data_all.find(
             f=lambda l: not l.is_special_id() and (l.is_metadata() or l.is_object()),
@@ -307,7 +365,7 @@ class Gmail:
                 )
         stored_deleted_count = stored_messages_total - len(stored_messages)
         q = "label:all"
-        if quick_sync_days is not None:
+        if not quick_sync and quick_sync_days is not None:
             date = datetime.now() - timedelta(days=quick_sync_days)
             q = f"label:all after:{date.strftime('%Y/%m/%d')}"
         messages_from_server = self.__get_all_messages_from_server(q=q)
@@ -329,6 +387,8 @@ class Gmail:
                     self.__backup_messages,
                     messages_from_server[message_id],
                     stored_messages,
+                    quick_sync=quick_sync,
+                    quick_sync_cutoff=quick_sync_cutoff,
                 )
             )
         # wait for jobs
@@ -339,6 +399,7 @@ class Gmail:
             return False
         logging.info(
             f"Backup summary: {self.__new_count} new, {self.__updated_count} updated"
+            + (f", {self.__skipped_count} skipped" if self.__skipped_count > 0 else "")
             + (
                 f", {self.__not_found_count} removed from server"
                 if self.__not_found_count > 0
@@ -351,7 +412,7 @@ class Gmail:
             logging.error("Backup failed with " + str(self.__error_count) + " errors")
             return False
 
-        if quick_sync_days is None:
+        if quick_sync or quick_sync_days is None:
             logging.debug("Mark as deletes...")
             deleted_count = 0
             for message_id in stored_messages:

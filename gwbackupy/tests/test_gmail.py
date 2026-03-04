@@ -2,7 +2,7 @@ import copy
 import gzip
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 import parametrize_from_file
 
 from typing import List, Dict
@@ -193,6 +193,147 @@ def test_restore_without_label_ids_key():
     restored_message = list(messages.values())[0]
     restored_label_ids = restored_message["labelIds"]
     assert len(restored_label_ids) == 0
+
+
+def test_quick_sync_new_and_deleted():
+    """quick_sync downloads new messages and marks deleted ones"""
+    ms = MockStorage()
+    sw = MockGmailServiceWrapper()
+    email = "example@example.com"
+    message_id1 = random_string()
+    message_raw1 = bytes(f"Message body... {message_id1}", "utf-8")
+    sw.inject_message(
+        email,
+        {
+            "id": message_id1,
+            "raw": encode_base64url(message_raw1),
+            "internalDate": str(int(datetime.now().timestamp() * 1000)),
+        },
+    )
+    gmail = Gmail(email=email, storage=ms, service_wrapper=sw)
+    assert gmail.backup()
+
+    # Remove message1 from server (simulates deletion), add message2
+    sw.inject_messages_clear()
+    message_id2 = random_string()
+    message_raw2 = bytes(f"Message body... {message_id2}", "utf-8")
+    sw.inject_message(
+        email,
+        {
+            "id": message_id2,
+            "raw": encode_base64url(message_raw2),
+            "internalDate": str(int(datetime.now().timestamp() * 1000)),
+        },
+    )
+
+    assert gmail.backup(quick_sync=True)
+    # labels + message1 (meta+obj) + message2 (meta+obj) = 5
+    assert len(ms.inject_get_objects()) == 1 + 2 + 2
+    found_new = False
+    for link in ms.find():
+        if link.id() == message_id2 and link.is_object():
+            found_new = True
+            with ms.get(link) as f:
+                assert gzip.decompress(f.read()) == message_raw2
+    assert found_new
+
+
+def test_quick_sync_skips_existing():
+    """quick_sync does not re-download existing messages"""
+    ms = MockStorage()
+    sw = MockGmailServiceWrapper()
+    email = "example@example.com"
+    message_id = random_string()
+    message_raw = bytes(f"Message body... {message_id}", "utf-8")
+    sw.inject_message(
+        email,
+        {
+            "id": message_id,
+            "raw": encode_base64url(message_raw),
+            "internalDate": str(int(datetime.now().timestamp() * 1000)),
+        },
+    )
+    gmail = Gmail(email=email, storage=ms, service_wrapper=sw)
+    assert gmail.backup()
+    objects_after_initial = len(ms.inject_get_objects())
+
+    # Run quick_sync - existing message should be skipped, no new objects
+    assert gmail.backup(quick_sync=True)
+    assert len(ms.inject_get_objects()) == objects_after_initial
+
+
+def test_quick_sync_with_days_checks_labels():
+    """quick_sync + quick_sync_days: checks label changes for recent messages,
+    skips old ones"""
+    ms = MockStorage()
+    sw = MockGmailServiceWrapper()
+    email = "example@example.com"
+
+    # Old message (30 days ago)
+    old_message_id = random_string()
+    old_timestamp = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)
+    old_message_raw = bytes(f"Old message {old_message_id}", "utf-8")
+    sw.inject_message(
+        email,
+        {
+            "id": old_message_id,
+            "raw": encode_base64url(old_message_raw),
+            "internalDate": str(old_timestamp),
+        },
+    )
+
+    # Recent message (1 day ago)
+    recent_message_id = random_string()
+    recent_timestamp = int((datetime.now() - timedelta(days=1)).timestamp() * 1000)
+    recent_message_raw = bytes(f"Recent message {recent_message_id}", "utf-8")
+    sw.inject_message(
+        email,
+        {
+            "id": recent_message_id,
+            "raw": encode_base64url(recent_message_raw),
+            "internalDate": str(recent_timestamp),
+        },
+    )
+
+    gmail = Gmail(email=email, storage=ms, service_wrapper=sw)
+    assert gmail.backup()
+    objects_after_initial = len(ms.inject_get_objects())
+
+    # Change labels on recent message to simulate server-side label change
+    sw.inject_messages_clear()
+    sw.inject_message(
+        email,
+        {
+            "id": old_message_id,
+            "raw": encode_base64url(old_message_raw),
+            "internalDate": str(old_timestamp),
+        },
+    )
+    sw.inject_message(
+        email,
+        {
+            "id": recent_message_id,
+            "raw": encode_base64url(recent_message_raw),
+            "internalDate": str(recent_timestamp),
+            "labelIds": ["INBOX", "IMPORTANT"],
+        },
+    )
+
+    # Run quick_sync with 7 days: old message skipped, recent message checked
+    assert gmail.backup(quick_sync=True, quick_sync_days=7)
+    # Recent message was within cutoff -> checked and label change detected -> new metadata
+    # Old message was before cutoff -> skipped entirely
+    assert len(ms.inject_get_objects()) > objects_after_initial
+    # Verify: recent message got updated metadata, old message did not
+    recent_meta_count = 0
+    old_meta_count = 0
+    for link in ms.find():
+        if link.id() == recent_message_id and link.is_metadata():
+            recent_meta_count += 1
+        if link.id() == old_message_id and link.is_metadata():
+            old_meta_count += 1
+    assert recent_meta_count == 2  # initial + updated
+    assert old_meta_count == 1  # only initial, skipped by quick_sync
 
 
 def __find_label_by_label_name(
