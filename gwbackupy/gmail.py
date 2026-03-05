@@ -10,6 +10,7 @@ import threading
 from datetime import datetime, timedelta
 
 from gwbackupy import global_properties
+from gwbackupy.adaptive_batch_controller import AdaptiveBatchController
 from gwbackupy.filters.filter_interface import FilterInterface
 from gwbackupy.helpers import (
     decode_base64url,
@@ -49,6 +50,7 @@ class Gmail:
         batch_size: int = 10,
         labels: list[str] | None = None,
         dry_mode: bool = False,
+        auto_batch: bool = False,
     ):
         self.dry_mode = dry_mode
         self.email = email
@@ -56,6 +58,8 @@ class Gmail:
         if batch_size is None or batch_size < 1:
             batch_size = 5
         self.batch_size = batch_size
+        self.auto_batch = auto_batch
+        self.__batch_controller: AdaptiveBatchController | None = None
         self.__lock = threading.RLock()
         self.__services = {}
         self.__error_count = 0
@@ -67,6 +71,44 @@ class Gmail:
         if labels is None:
             labels = []
         self.labels = labels
+
+    def __start_batch_controller(self):
+        """Create the adaptive batch controller if auto_batch is enabled."""
+        if not self.auto_batch:
+            return
+        self.__batch_controller = AdaptiveBatchController(
+            initial_size=self.batch_size,
+        )
+        if hasattr(self.__service_wrapper, "on_rate_limit_callback"):
+            self.__service_wrapper.on_rate_limit_callback = (
+                self.__batch_controller.on_rate_limit
+            )
+        logging.info(
+            f"Auto-batch enabled: starting at {self.batch_size}, "
+            f"max {self.__batch_controller.max_size}"
+        )
+
+    def __stop_batch_controller(self):
+        """Clean up the adaptive batch controller."""
+        if self.__batch_controller is not None:
+            if hasattr(self.__service_wrapper, "on_rate_limit_callback"):
+                self.__service_wrapper.on_rate_limit_callback = None
+            self.__batch_controller = None
+
+    def __get_executor_max_workers(self) -> int:
+        if self.__batch_controller is not None:
+            return self.__batch_controller.max_size
+        return self.batch_size
+
+    def __submit_task(self, executor, fn, *args, **kwargs):
+        """Submit a task, wrapping with batch controller if enabled."""
+        if self.__batch_controller is not None:
+            return executor.submit(self.__batch_controlled_task, fn, *args, **kwargs)
+        return executor.submit(fn, *args, **kwargs)
+
+    def __batch_controlled_task(self, fn, *args, **kwargs):
+        with self.__batch_controller.slot():
+            return fn(*args, **kwargs)
 
     def __get_local_messages_latest_mutations_only(self):
         pass
@@ -378,12 +420,16 @@ class Gmail:
             )
         )
         logging.debug("Processing...")
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
+        self.__start_batch_controller()
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.__get_executor_max_workers()
+        )
         futures = []
         # submit message download jobs
         for message_id in messages_from_server:
             futures.append(
-                executor.submit(
+                self.__submit_task(
+                    executor,
                     self.__backup_messages,
                     messages_from_server[message_id],
                     stored_messages,
@@ -395,8 +441,10 @@ class Gmail:
         if not await_all_futures(futures):
             # cancel jobs
             executor.shutdown(cancel_futures=True)
+            self.__stop_batch_controller()
             logging.warning("Process is killed")
             return False
+        self.__stop_batch_controller()
         logging.info(
             f"Backup summary: {self.__new_count} new, {self.__updated_count} updated"
             + (f", {self.__skipped_count} skipped" if self.__skipped_count > 0 else "")
@@ -687,11 +735,15 @@ class Gmail:
 
         logging.info(f"Number of potentially affected messages: {len(stored_messages)}")
         logging.debug("Upload messages...")
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=self.batch_size)
+        self.__start_batch_controller()
+        executor = concurrent.futures.ThreadPoolExecutor(
+            max_workers=self.__get_executor_max_workers()
+        )
         futures = []
         for message_id in stored_messages:
             futures.append(
-                executor.submit(
+                self.__submit_task(
+                    executor,
                     self.__restore_message,
                     message_id,
                     stored_messages[message_id],
@@ -702,8 +754,10 @@ class Gmail:
                 )
             )
         if not await_all_futures(futures):
+            self.__stop_batch_controller()
             logging.warning("Process killed")
             return False
+        self.__stop_batch_controller()
 
         if self.__error_count > 0:
             logging.error(f"Messages uploaded with {self.__error_count} errors")

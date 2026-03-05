@@ -66,6 +66,12 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--batch-size", type=int, help="Concurrent threads", default=5)
     parser.add_argument(
+        "--auto-batch",
+        default=False,
+        help="Automatically adjust batch size to maximize throughput without hitting rate limits",
+        action="store_true",
+    )
+    parser.add_argument(
         "--service-account-email",
         type=str,
         default=None,
@@ -244,6 +250,7 @@ def cli_startup():
                 batch_size=args.batch_size,
                 storage=storage,
                 dry_mode=args.dry,
+                auto_batch=args.auto_batch,
             )
             if args.command == "access-init":
                 service_wrapper.get_labels(args.email)

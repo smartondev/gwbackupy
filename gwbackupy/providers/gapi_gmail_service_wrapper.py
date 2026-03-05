@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any, Callable
 
 from googleapiclient.errors import HttpError
 
@@ -19,21 +20,23 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
         try_count: int = 5,
         try_sleep: int = 10,
         dry_mode: bool = False,
+        on_rate_limit_callback: Callable[[], None] | None = None,
     ):
         self.try_count = try_count
         self.try_sleep = try_sleep
         self.service_provider = service_provider
         self.dry_mode = dry_mode
+        self.on_rate_limit_callback = on_rate_limit_callback
 
     def get_service_provider(self) -> GmailServiceProvider:
         return self.service_provider
 
-    def get_labels(self, email: str) -> list[dict[str, any]]:
+    def get_labels(self, email: str) -> list[dict[str, Any]]:
         with self.service_provider.get_service(email) as service:
             response = service.users().labels().list(userId="me").execute()
             return response.get("labels", [])
 
-    def get_messages(self, email: str, q: str) -> dict[str, dict[str, any]]:
+    def get_messages(self, email: str, q: str) -> dict[str, dict[str, Any]]:
         with self.service_provider.get_service(email) as service:
             messages = {}
             count = 0
@@ -64,7 +67,7 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
 
     def get_message(
         self, email: str, message_id: str, message_format: str = "minimal"
-    ) -> dict[str, any] | None:
+    ) -> dict[str, Any] | None:
         for i in range(self.try_count):
             try:
                 with self.service_provider.get_service(email) as service:
@@ -84,8 +87,10 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.exception(f"{message_id} message download failed: {e}")
                     raise e
                 if is_rate_limit_exceeded(e):
+                    if self.on_rate_limit_callback is not None:
+                        self.on_rate_limit_callback()
                     logging.warning(
-                        f"{message_id} rate limit exceeded, sleeping for {self.try_sleep} seconds"
+                        f"Rate limit exceeded (message: {message_id}), sleeping for {self.try_sleep} seconds"
                     )
                     sleep_kc(self.try_sleep)
                 else:
@@ -95,10 +100,11 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     # last try
                     logging.exception(f"{message_id} message download failed: {e}")
                     raise e
+        return None
 
     def create_label(
         self, email: str, name: str, get_if_already_exists: bool = False
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         if self.dry_mode:
             return {
                 "name": name,
@@ -124,8 +130,10 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.exception(f"Label ({name}) create fail: {e}")
                     raise e
                 elif is_rate_limit_exceeded(e):
+                    if self.on_rate_limit_callback is not None:
+                        self.on_rate_limit_callback()
                     logging.warning(
-                        f"Label ({name}) create rate limit exceeded, sleeping for {self.try_sleep} seconds"
+                        f"Rate limit exceeded (label: {name}), sleeping for {self.try_sleep} seconds"
                     )
                     sleep_kc(self.try_sleep)
                 else:
@@ -146,8 +154,9 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                 if label.get("name") == name:
                     return label
             raise Exception(f"Label ({name}) is already exists but cannot found it")
+        raise Exception(f"Label ({name}) create failed after {self.try_count} attempts")
 
-    def insert_message(self, email: str, data: dict[str, any]) -> dict[str, any]:
+    def insert_message(self, email: str, data: dict[str, Any]) -> dict[str, Any]:
         if self.dry_mode:
             return {"id": f"DRYMODE{random_string()}"}
 
@@ -171,9 +180,12 @@ class GapiGmailServiceWrapper(GmailServiceWrapperInterface):
                     logging.exception(f"Message insert fail: {e}")
                     raise e
                 elif is_rate_limit_exceeded(e):
+                    if self.on_rate_limit_callback is not None:
+                        self.on_rate_limit_callback()
                     logging.warning(
-                        f"Message insert rate limit exceeded, sleeping for {self.try_sleep} seconds"
+                        f"Rate limit exceeded (message insert), sleeping for {self.try_sleep} seconds"
                     )
                     sleep_kc(self.try_sleep)
                 else:
                     logging.warning(f"Next attempt to insert message")
+        raise Exception(f"Message insert failed after {self.try_count} attempts")
