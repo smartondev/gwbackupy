@@ -22,8 +22,7 @@ class GmailServiceWrapperInterface:
         """Return all labels"""
         ...
 
-    def get_service_provider(self) -> ServiceProviderInterface:
-        ...
+    def get_service_provider(self) -> ServiceProviderInterface: ...
 
     def create_label(
         self, email: str, name: str, get_if_already_exists: bool = False
