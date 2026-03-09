@@ -110,6 +110,16 @@ gwbackupy \
   --email <mailbox email address>
 ```
 
+Multiple accounts backup (runs in parallel, each account in a separate process):
+
+```bash
+gwbackupy \
+  --service-account-key-filepath <service-acount-json-key-file> \
+  gmail backup \
+  --email <first mailbox email address> \
+  --email <second mailbox email address>
+```
+
 Quick sync backup (faster, skips re-downloading existing messages):
 
 ```bash

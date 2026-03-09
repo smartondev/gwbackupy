@@ -5,6 +5,7 @@
 - Enh: improve logging
 - Enh: add `--quick-sync` mode for gmail backup (fetch all IDs, download only new messages, mark deleted, skip re-downloading existing). Can be combined with `--quick-sync-days` for label/metadata change detection within the specified period.
 - Enh: add `--auto-batch` flag to automatically adjust batch size to maximize throughput
+- Enh: add multi-account support — `--email` can be specified multiple times to backup/restore multiple accounts in parallel (each account runs in a separate process)
 
 ## 0.12.0
 

@@ -28,7 +28,7 @@ Currently only `gmail` is supported.
 
 | parameter           | type   | description                                                                                                    |
 |---------------------|--------|----------------------------------------------------------------------------------------------------------------|
-| `--email`           | string | email account for backup (REQUIRED)                                                                            |
+| `--email`           | string | email account for backup (REQUIRED, can be specified multiple times for parallel multi-account backup)          |
 | `--quick-sync`      |        | Quick sync mode: fetches all message IDs but only downloads new messages and marks deleted ones. Skips re-downloading existing messages. Can be combined with `--quick-sync-days`. |
 | `--quick-sync-days` | int    | Quick syncing mode. The value is number of retroactive days. (It does not delete messages from local storage.) When combined with `--quick-sync`, checks label/metadata changes for messages within the specified period. |
 
@@ -45,8 +45,8 @@ Currently only `gmail` is supported.
 
 | parameter            | type             | description                                                                                                   |
 |----------------------|------------------|---------------------------------------------------------------------------------------------------------------|
-| `--email`            | string           | email account for restore (REQUIRED)                                                                          |
-| `--to-email`         | string           | email account to restore                                                                                      |
+| `--email`            | string           | email account for restore (REQUIRED, can be specified multiple times for parallel multi-account restore)       |
+| `--to-email`         | string           | destination email account; if not specified, `--email` is used as the destination (cannot be used with multiple `--email` accounts) |
 | `--restore-deleted`  |                  | Restore deleted message (The message has been marked as deleted in the local storage.)                        |
 | `--restore-missing`  |                  | Restore missing message (The backup has not been run before, but the message no longer exists on the server.) |
 | `--filter-date-from` | date or datetime | Filter message from date, e.g. "2023-01-01" or "2023-01-01 05:33:00"                                          |
@@ -61,4 +61,4 @@ on the server and marked it in the local storage.*
 
 | parameter | type   | description                            |
 |-----------|--------|----------------------------------------|
-| `--email` | string | email account for check or init access |
+| `--email` | string | email account for check or init access (can be specified multiple times) |

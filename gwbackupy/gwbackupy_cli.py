@@ -1,5 +1,6 @@
 import argparse
 import logging
+import multiprocessing
 import sys
 import threading
 
@@ -125,18 +126,18 @@ def parse_arguments() -> argparse.Namespace:
         "access-init", help="Access initialization e.g. OAuth authentication"
     )
     gmail_oauth_init_parser.add_argument(
-        "--email", type=str, help="Email account", required=True
+        "--email", type=str, help="Email account", required=True, action="append"
     )
     gmail_oauth_check_parser = gmail_command_parser.add_parser(
         "access-check", help="Check access e.g. OAuth tokens"
     )
     gmail_oauth_check_parser.add_argument(
-        "--email", type=str, help="Email account", required=True
+        "--email", type=str, help="Email account", required=True, action="append"
     )
 
     gmail_backup_parser = gmail_command_parser.add_parser("backup", help="Backup gmail")
     gmail_backup_parser.add_argument(
-        "--email", type=str, help="Email of the account", required=True
+        "--email", type=str, help="Email of the account", required=True, action="append"
     )
     gmail_backup_parser.add_argument(
         "--quick-sync",
@@ -159,7 +160,11 @@ def parse_arguments() -> argparse.Namespace:
         "restore", help="Restore gmail"
     )
     gmail_restore_parser.add_argument(
-        "--email", type=str, help="Email from which restore", required=True
+        "--email",
+        type=str,
+        help="Email from which restore",
+        required=True,
+        action="append",
     )
     gmail_restore_parser.add_argument(
         "--to-email",
@@ -225,92 +230,171 @@ def parse_arguments() -> argparse.Namespace:
     return args
 
 
+def _run_single_email(args: argparse.Namespace, email: str):
+    log_format = f"%(levelname)s %(asctime)s [{email}] - %(message)s"
+    for handler in logging.root.handlers:
+        handler.setFormatter(logging.Formatter(log_format))
+
+    if args.service == "gmail":
+        storage = FileStorage(args.workdir + "/" + email + "/gmail")
+        storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")
+        service_provider = GmailServiceProvider(
+            credentials_file_path=args.credentials_filepath,
+            service_account_email=args.service_account_email,
+            service_account_file_path=args.service_account_key_filepath,
+            storage=storage_oauth_tokens,
+            oauth_bind_addr=args.oauth_bind_address,
+            oauth_port=args.oauth_port,
+            oauth_redirect_host=args.oauth_redirect_host,
+        )
+        service_wrapper = GapiGmailServiceWrapper(
+            service_provider=service_provider,
+            dry_mode=args.dry,
+        )
+        gmail = Gmail(
+            email=email,
+            service_wrapper=service_wrapper,
+            batch_size=args.batch_size,
+            storage=storage,
+            dry_mode=args.dry,
+            auto_batch=args.auto_batch,
+        )
+        if args.command == "access-init":
+            service_wrapper.get_labels(email)
+        elif args.command == "access-check":
+            try:
+                with service_provider.get_service(email, False) as s:
+                    service_wrapper.get_labels(email)
+            except AccessNotInitializedError:
+                sys.exit(1)
+        elif args.command == "backup":
+            if gmail.backup(
+                quick_sync=args.quick_sync, quick_sync_days=args.quick_sync_days
+            ):
+                sys.exit(0)
+            else:
+                sys.exit(1)
+        elif args.command == "restore":
+            add_labels = (
+                args.add_labels if args.add_labels is not None else ["gwbackupy"]
+            )
+            item_filter = GmailFilter()
+            if args.restore_deleted:
+                item_filter.with_match_deleted()
+                logging.info("Filter options: deleted")
+            if args.restore_missing:
+                item_filter.with_match_missing()
+                logging.info("Filter options: missing")
+            if args.filter_date_from is not None:
+                dt = parse_date(args.filter_date_from, args.timezone)
+                item_filter.with_date_from(dt)
+                logging.info(f"Filter options: date from {dt}")
+            if args.filter_date_to is not None:
+                dt = parse_date(args.filter_date_to, args.timezone)
+                item_filter.with_date_to(dt)
+                logging.info(f"Filter options: date to {dt}")
+
+            if (
+                not item_filter.is_match_deleted()
+                and not item_filter.is_match_missing()
+            ):
+                logging.warning("Tasks not found, see more e.g. --restore-deleted")
+                sys.exit(0)
+
+            if gmail.restore(
+                to_email=args.to_email,
+                item_filter=item_filter,
+                add_labels=add_labels,
+            ):
+                sys.exit(0)
+            else:
+                sys.exit(1)
+        else:
+            raise Exception("Unknown command")
+
+
+def _ensure_access(args: argparse.Namespace, emails: list[str]):
+    """Sequentially ensure all email accounts have valid OAuth tokens before parallel execution."""
+    if args.credentials_filepath is None:
+        return
+    storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")
+    service_provider = GmailServiceProvider(
+        credentials_file_path=args.credentials_filepath,
+        service_account_email=args.service_account_email,
+        service_account_file_path=args.service_account_key_filepath,
+        storage=storage_oauth_tokens,
+        oauth_bind_addr=args.oauth_bind_address,
+        oauth_port=args.oauth_port,
+        oauth_redirect_host=args.oauth_redirect_host,
+    )
+    for email in emails:
+        logging.info(f"Checking access for {email}...")
+        with service_provider.get_service(email) as s:
+            pass
+        logging.info(f"Access OK for {email}")
+
+
 def cli_startup():
     try:
         args = parse_arguments()
-        if args.service == "gmail":
-            storage = FileStorage(args.workdir + "/" + args.email + "/gmail")
-            storage_oauth_tokens = FileStorage(args.workdir + "/oauth-tokens")
-            service_provider = GmailServiceProvider(
-                credentials_file_path=args.credentials_filepath,
-                service_account_email=args.service_account_email,
-                service_account_file_path=args.service_account_key_filepath,
-                storage=storage_oauth_tokens,
-                oauth_bind_addr=args.oauth_bind_address,
-                oauth_port=args.oauth_port,
-                oauth_redirect_host=args.oauth_redirect_host,
-            )
-            service_wrapper = GapiGmailServiceWrapper(
-                service_provider=service_provider,
-                dry_mode=args.dry,
-            )
-            gmail = Gmail(
-                email=args.email,
-                service_wrapper=service_wrapper,
-                batch_size=args.batch_size,
-                storage=storage,
-                dry_mode=args.dry,
-                auto_batch=args.auto_batch,
-            )
-            if args.command == "access-init":
-                service_wrapper.get_labels(args.email)
-            elif args.command == "access-check":
-                try:
-                    with service_provider.get_service(args.email, False) as s:
-                        service_wrapper.get_labels(args.email)
-                except AccessNotInitializedError:
-                    exit(1)
-            elif args.command == "backup":
-                if gmail.backup(
-                    quick_sync=args.quick_sync, quick_sync_days=args.quick_sync_days
-                ):
-                    exit(0)
-                else:
-                    exit(1)
-            elif args.command == "restore":
-                if args.add_labels is None:
-                    args.add_labels = ["gwbackupy"]
-                item_filter = GmailFilter()
-                if args.restore_deleted:
-                    item_filter.with_match_deleted()
-                    logging.info("Filter options: deleted")
-                if args.restore_missing:
-                    item_filter.with_match_missing()
-                    logging.info("Filter options: missing")
-                if args.filter_date_from is not None:
-                    dt = parse_date(args.filter_date_from, args.timezone)
-                    item_filter.with_date_from(dt)
-                    logging.info(f"Filter options: date from {dt}")
-                if args.filter_date_to is not None:
-                    dt = parse_date(args.filter_date_to, args.timezone)
-                    item_filter.with_date_to(dt)
-                    logging.info(f"Filter options: date to {dt}")
+        emails = args.email
 
-                if (
-                    not item_filter.is_match_deleted()
-                    and not item_filter.is_match_missing()
-                ):
-                    logging.warning("Tasks not found, see more e.g. --restore-deleted")
-                    return True
+        if len(emails) != len(set(emails)):
+            logging.error("--email contains duplicate accounts")
+            sys.exit(1)
 
-                if gmail.restore(
-                    to_email=args.to_email,
-                    item_filter=item_filter,
-                    add_labels=args.add_labels,
-                ):
-                    exit(0)
-                else:
-                    exit(1)
-            else:
-                raise Exception("Unknown command")
+        if (
+            args.command == "restore"
+            and getattr(args, "to_email", None) is not None
+            and len(emails) > 1
+        ):
+            logging.error("--to-email cannot be used with multiple --email accounts")
+            sys.exit(1)
+
+        if len(emails) == 1:
+            _run_single_email(args, emails[0])
+            return
+
+        if args.command == "access-init":
+            for email in emails:
+                _run_single_email(args, email)
+            return
+
+        _ensure_access(args, emails)
+
+        processes = {}
+        for email in emails:
+            p = multiprocessing.Process(
+                target=_run_single_email,
+                args=(args, email),
+            )
+            p.start()
+            processes[email] = p
+
+        for email, p in processes.items():
+            p.join()
+
+        failed = [email for email, p in processes.items() if p.exitcode != 0]
+        if failed:
+            logging.error(f"Failed accounts: {', '.join(failed)}")
+            sys.exit(1)
+        else:
+            logging.info("All accounts completed successfully")
+            sys.exit(0)
+
     except KeyboardInterrupt:
         logging.warning("Process is interrupted")
-        exit(1)
+        if "processes" in locals():
+            for email, p in processes.items():
+                p.join(timeout=30)
+                if p.is_alive():
+                    p.terminate()
+        sys.exit(1)
     except SystemExit as e:
-        exit(e.code)
+        sys.exit(e.code)
     except BaseException:
         logging.exception("CLI startup/run failed")
-        exit(1)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
